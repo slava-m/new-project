@@ -1,0 +1,15 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {simulateHistory} from '../backtest.mjs';
+const fixture=()=>Array.from({length:150},(_,i)=>({time:1700000000+i*86400,open:100,high:101,low:99,close:100,volume:1e6}));
+const plan={entry:101,stop:95,target:115,support:{value:96},validForSessions:3,maxHoldSessions:10};
+const evaluator=(b)=>({status:b.length===150?'candidate':'waiting',plan,facts:{sma150:90}});
+const add=(b,values)=>b.push({time:b.at(-1).time+86400,open:100,high:102,low:99,close:101,volume:1e6,...values});
+const opts={commissionPerSide:2.5,slippageBps:0,minRR:0,riskFraction:0.1};
+test('fixed commission is 2.50 dollars per side, not percentage',()=>{const b=fixture();add(b,{open:101,high:102,low:99,close:101});for(let i=0;i<9;i++)add(b,{open:101,high:102,low:99,close:101});const r=simulateHistory(b,opts,evaluator);assert.equal(r.trades.length,1);assert.equal(r.trades[0].entryFee,2.5);assert.equal(r.trades[0].exitFee,2.5);assert.equal(r.trades[0].net,-5);assert.equal(r.trades[0].holdSessions,10);});
+test('same-day stop and target choose conservative stop and mark ambiguity',()=>{const b=fixture();add(b,{high:120,low:94,close:105});const r=simulateHistory(b,opts,evaluator);assert.equal(r.trades[0].exit,95);assert.equal(r.ambiguous,1);assert.equal(r.trades[0].ambiguous,true);});
+test('gap below stop exits at open, not ideal stop',()=>{const b=fixture();add(b,{});add(b,{open:90,high:94,low:89,close:92});const r=simulateHistory(b,opts,evaluator);assert.equal(r.trades[0].exit,90);});
+test('unfilled plan expires after three future sessions',()=>{const b=fixture();for(let i=0;i<4;i++)add(b,{high:100.5,close:100});const r=simulateHistory(b,opts,evaluator);assert.equal(r.trades.length,0);assert.equal(r.expired,1);});
+test('open trade not counted as completed, future bars cannot alter past entry',()=>{const b=fixture();add(b,{});const a=simulateHistory(b,opts,evaluator);assert.equal(a.metrics.closedTrades,0);assert.ok(a.openPosition);add(b,{high:116,close:115});const c=simulateHistory(b,opts,evaluator);assert.equal(c.trades[0].entry,a.openPosition.entry);assert.equal(c.trades[0].decisionTime,b[149].time);});
+test('gap that ruins RR is skipped after costs',()=>{const b=fixture();add(b,{open:114,high:116,low:113,close:115});const r=simulateHistory(b,{...opts,minRR:2},evaluator);assert.equal(r.trades.length,0);assert.equal(r.skipped,1);});
+test('no history means no fabricated win rate',()=>{const r=simulateHistory([],opts);assert.equal(r.metrics.winRate,null);assert.equal(r.metrics.meanR,null);});
+
+test('production strategy creates and executes a genuine synthetic candidate',()=>{const b=Array.from({length:170},(_,i)=>({time:1700000000+i*86400,open:125,close:127,low:124,high:130,volume:1000000}));b[140].high=190;b[150].low=120;b[162].low=120.5;b[169]={...b[169],high:134,close:133};add(b,{open:135,high:195,low:130,close:190});const r=simulateHistory(b);assert.ok(r.signals>0);assert.ok(r.trades.length>0);assert.equal(r.trades[0].exitReason,'Цель');assert.ok(r.trades[0].net>0);});

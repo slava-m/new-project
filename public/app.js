@@ -41,6 +41,17 @@ function render(){
  $('facts').replaceChildren();for(const [label,name] of [['SMA20','sma20'],['SMA50','sma50'],['SMA150','sma150'],['ATR14 (Wilder)','atr14']])fact($('facts'),label,fmt(signal.facts?.[name]));
  $('plan').replaceChildren();if(signal.plan){for(const [label,name] of [['Условный вход','entry'],['Стоп по структуре','stop'],['Расчётная цель','target'],['RR до издержек','rr']])fact($('plan'),label,fmt(signal.plan[name]));$('plan').append(el('p',signal.plan.supportReason+' · '+signal.plan.targetReason+' · действует '+signal.plan.validForSessions+' сессии · максимальное удержание '+signal.plan.maxHoldSessions+' сессий','muted'));}
  $('signal-cancel').textContent='Отмена: '+signal.cancel.join('; ');$('limitations').textContent=signal.limitations.join(' · ');
+ const h=v.history;
+ if(h){
+ $('history-summary').textContent='Отдельная симуляция '+selected+' · '+h.coverage.bars+' свечей · '+h.coverage.decisionSessions+' сессий после прогрева · сигналов: '+h.signals+' · завершённых сделок: '+h.metrics.closedTrades;
+ $('history-settings').textContent='Эксперимент: капитал '+fmt(h.settings.initialCapital)+' USD на каждую акцию отдельно · риск '+fmt(h.settings.riskFraction*100)+'% · комиссия '+fmt(h.settings.commissionPerSide)+' USD за покупку и за продажу · проскальзывание '+fmt(h.settings.slippageBps/100)+'% на каждую сторону.';
+ $('history-metrics').replaceChildren();for(const [label,value] of [['Результат завершённых, USD',h.metrics.realizedNet],['Доходность завершённых, %',h.metrics.closedTrades?h.metrics.realizedReturnPct:null],['Прибыльных сделок, %',h.metrics.winRate],['Просадка по дневной оценке, %',h.metrics.maxDrawdownPct],['Средний результат, R',h.metrics.meanR]])fact($('history-metrics'),label,fmt(value));
+ $('history-note').textContent='Незавершённых позиций: '+(h.openPosition?1:0)+' · ожидающих планов: '+(h.pendingPlan?1:0)+' · пропущено: '+h.skipped+' · истекло: '+h.expired+' · дней с неопределённым порядком стоп/цель: '+h.ambiguous+'. '+h.limitations.join(' · ');
+ const table=document.createElement('table'),head=document.createElement('tr');for(const label of ['Вход / выход','Вход → выход, USD','Результат, USD','Причина выхода'])head.append(el('th',label));table.append(head);
+ for(const t of h.trades.slice(-10)){const row=document.createElement('tr');row.append(el('td',day(t.entryTime)+' / '+day(t.exitTime)),el('td',fmt(t.entry)+' → '+fmt(t.exit)),el('td',fmt(t.net)),el('td',t.exitReason));table.append(row);}
+ if(!h.trades.length)$('history-trades').textContent='Завершённых сделок нет: статистика прибыльности не рассчитана.';else $('history-trades').replaceChildren(table);
+ }
+
  $('agent-status').textContent=s.agent.status==='ready'&&!v.bars.length?'Модель готова · ожидает историю':s.agent.message;
  $('analysis').textContent=v.analysis?.text||'Агент объяснит результаты после загрузки дневной истории. Сейчас расчётные уровни не подставляются.';
  $('analysis-time').textContent=v.analysis?'Анализ сформирован: '+date(v.analysis.generated)+' · исходная торговая дата: '+day(v.analysis.barStart):'';

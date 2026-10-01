@@ -8,6 +8,7 @@ import {indicators,validBar,splitClosed} from './indicators.mjs';
 import {evaluateStrategy as evaluateSetup} from './strategy.mjs';
 import {fetchDaily} from './daily.mjs';
 import {buildReport,validateAssessment} from './report.mjs';
+import {simulateHistory} from './backtest.mjs';
 const require=createRequire(import.meta.url);
 const {IBApi,EventName}=require('@stoqey/ib');
 const root=path.dirname(fileURLToPath(import.meta.url));
@@ -31,7 +32,9 @@ db.exec('CREATE TABLE IF NOT EXISTS daily_history(symbol TEXT PRIMARY KEY,payloa
 const clients=new Set(); let stopped=false,ib,attempt=0,generation=0,retryTimer,connectTimer;
 const keyPath=path.join(root,'data','provider-key.json'); let providerKey=process.env.TWELVEDATA_API_KEY||(fs.existsSync(keyPath)?JSON.parse(fs.readFileSync(keyPath,'utf8')).key:''); let dailyRunning=false;
 const queue=new Map();let busy=false,modelReady=false; const analyzed=new Map();
-function snapshot(){return {...state,universe,strategy:config.research,positions:state.positions.map(({key,...p})=>p),now:Date.now(),symbols:Object.fromEntries(Object.entries(state.symbols).map(([s,v])=>[s,{...v,bars:v.bars.slice(-1000),signal:evaluateSetup(dailyMode?v.bars:splitClosed(v.bars),{...config.research,now:Date.now()/1000,connected:dailyMode?v.dataStatus==='ready':state.connection==='connected'&&v.barMode!=='cached'}),quoteStale:!v.quoteAt||Date.now()-v.quoteAt>90000,barStale:!v.bars.length||Date.now()/1000-v.bars.at(-1).time>(dailyMode?8*86400:180)}]))};}
+const historyCache=new Map();
+function historyFor(symbol,v){const key=v.lastUpdate+':'+v.bars.length+':'+v.bars.at(-1)?.time;if(historyCache.get(symbol)?.key!==key)historyCache.set(symbol,{key,value:simulateHistory(v.bars,config.research)});return historyCache.get(symbol).value;}
+function snapshot(){return {...state,universe,strategy:config.research,positions:state.positions.map(({key,...p})=>p),now:Date.now(),symbols:Object.fromEntries(Object.entries(state.symbols).map(([s,v])=>[s,{...v,history:dailyMode?historyFor(s,v):null,bars:v.bars.slice(-1000),signal:evaluateSetup(dailyMode?v.bars:splitClosed(v.bars),{...config.research,now:Date.now()/1000,connected:dailyMode?v.dataStatus==='ready':state.connection==='connected'&&v.barMode!=='cached'}),quoteStale:!v.quoteAt||Date.now()-v.quoteAt>90000,barStale:!v.bars.length||Date.now()/1000-v.bars.at(-1).time>(dailyMode?8*86400:180)}]))};}
 function broadcast(){const msg='data: '+JSON.stringify(snapshot())+'\n\n';for(const res of clients)res.write(msg);}
 function error(message,code,id){state.errors.unshift({at:Date.now(),message:String(message),code,id});state.errors=state.errors.slice(0,12);broadcast();}
 async function checkModel(){
