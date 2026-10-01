@@ -27,6 +27,14 @@ function render(){
  for(const [symbol,x] of Object.entries(s.symbols)){const tr=document.createElement('tr');tr.tabIndex=0;tr.className='scan-row';tr.onclick=()=>selectSymbol(symbol);tr.onkeydown=e=>{if(e.key==='Enter')selectSymbol(symbol);};tr.append(el('td',symbol),el('td',labels[x.signal.status]),el('td',day(x.bars.at(-1)?.time)),el('td',x.signal.reasons[0]||'—'));table.append(tr);}
  $('scan-table').replaceChildren(table);
  $('watch').replaceChildren();for(const [symbol,x] of Object.entries(s.symbols)){const button=el('button','','watch'+(selected===symbol?' active':''));const left=document.createElement('div');left.append(el('strong',symbol),el('div',labels[x.signal.status],'muted'));button.append(left,el('span',x.bars.length?fmt(x.bars.at(-1).close):'—'));button.onclick=()=>selectSymbol(symbol);$('watch').append(button);}
+
+ const histories=Object.entries(s.symbols).filter(([,x])=>x.history);
+ const allTable=document.createElement('table'),historyHead=document.createElement('tr');
+ for(const title of ['Акция','Свечи','Сигналы','Отмены входа','Сделки'])historyHead.append(el('th',title));allTable.append(historyHead);
+ let totalSignals=0,totalTrades=0;
+ for(const [symbol,x] of histories){const h=x.history,row=document.createElement('tr');row.className='scan-row';row.tabIndex=0;row.onclick=()=>selectSymbol(symbol);row.onkeydown=e=>{if(e.key==='Enter')selectSymbol(symbol);};for(const value of [symbol,h.coverage.bars,h.signals,h.skipped+h.expired,h.metrics.closedTrades])row.append(el('td',String(value)));allTable.append(row);totalSignals+=h.signals;totalTrades+=h.metrics.closedTrades;}
+ $('universe-history').replaceChildren(allTable);
+ $('universe-history-summary').textContent='Проверено акций: '+histories.length+' · сигналов: '+totalSignals+' · завершённых сделок: '+totalTrades+'. Каждая акция моделируется отдельно; это не общий портфель. Нажмите строку для деталей.';
  $('symbol').textContent=selected+' / USD';$('feed').textContent=chartSource==='tv'?'TradingView · задержка определяется источником':'Дневные свечи · не live';
  $('tv-chart').hidden=chartSource!=='tv';$('chart').hidden=chartSource!=='local'||!v.bars.length;$('chart-empty').hidden=chartSource!=='local'||!!v.bars.length;
  $('source-note').textContent=widgetFailed?'TradingView не загрузился; проверьте интернет.':chartSource==='tv'?'Публичный дневной график через интернет. Числовая история и агент получают данные отдельно.':'История из Twelve Data. Последний незавершённый торговый день исключён.';
