@@ -1,36 +1,42 @@
+import {translateDOM,validLanguage} from '/i18n.js';
+import {matchesFilter,readPreferences,savePreferences} from '/filters.js';
+const preferences=readPreferences(localStorage);let language=preferences.language;
 const $=id=>document.getElementById(id);let state,selected,chartSource='tv',widgetSymbol='',chartKey='',fitted=false,widgetFailed=false;
-const fmt=(v,n=2)=>Number.isFinite(v)?v.toLocaleString('ru-RU',{maximumFractionDigits:n}):'—';
+const fmt=(v,n=2)=>Number.isFinite(v)?v.toLocaleString(language==='en'?'en-US':'ru-RU',{maximumFractionDigits:n}):'—';
 const day=t=>t?new Date(t*1000).toISOString().slice(0,10):'—';
 const date=t=>t?new Date(t).toLocaleString('ru-RU',{timeZone:'Asia/Jerusalem'}):'—';
 const labels={candidate:'Условный кандидат',waiting:'Наблюдать',excluded:'Исключён',insufficient:'Недостаточно данных'};
 function el(tag,value,cls){const node=document.createElement(tag);node.textContent=value;if(cls)node.className=cls;return node;}
 function fact(host,name,value){const box=el('div',name,'fact');box.append(el('b',value));host.append(box);}
-const chart=LightweightCharts.createChart($('chart'),{autoSize:true,layout:{background:{color:'#111b2a'},textColor:'#8da0bb',attributionLogo:true},grid:{vertLines:{color:'#1c2a3f'},horzLines:{color:'#1c2a3f'}},timeScale:{timeVisible:false},localization:{locale:'ru-RU'}});
+const chart=LightweightCharts.createChart($('chart'),{autoSize:true,layout:{background:{color:'#111b2a'},textColor:'#8da0bb',attributionLogo:true},grid:{vertLines:{color:'#1c2a3f'},horzLines:{color:'#1c2a3f'}},timeScale:{timeVisible:false},localization:{locale:language==='en'?'en-US':'ru-RU'}});
 const candles=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#66cdb0',downColor:'#ef7c81',borderVisible:false,wickUpColor:'#66cdb0',wickDownColor:'#ef7c81'});
 const volume=chart.addSeries(LightweightCharts.HistogramSeries,{priceFormat:{type:'volume'},priceScaleId:'volume'});
 volume.priceScale().applyOptions({scaleMargins:{top:0.8,bottom:0}});candles.priceScale().applyOptions({scaleMargins:{top:0.08,bottom:0.25}});
 function selectSymbol(s){selected=s;fitted=false;chartKey='';openEvents(s);}
 function widget(){
- const symbol=(state.universe.members?.find(m=>m.symbol===selected)?.exchange||'NASDAQ')+':'+selected.replace('.', '-');if(widgetSymbol===symbol)return;widgetSymbol=symbol;widgetFailed=false;
+ const symbol=(state.universe.members?.find(m=>m.symbol===selected)?.exchange||'NASDAQ')+':'+selected.replace('.', '-');const widgetKey=symbol+':'+language;if(widgetSymbol===widgetKey)return;widgetSymbol=widgetKey;widgetFailed=false;
  const host=$('tv-chart');host.replaceChildren();const target=document.createElement('div');target.className='tradingview-widget-container__widget';host.append(target);
  const iframe=document.createElement('iframe');iframe.title='Дневной график TradingView';iframe.style.cssText='width:100%;height:100%;border:0';
- iframe.src='https://www.tradingview-widget.com/embed-widget/advanced-chart/?locale=ru#'+encodeURIComponent(JSON.stringify({autosize:true,symbol,interval:'D',timezone:'Asia/Jerusalem',theme:'dark',style:'1',locale:'ru',allow_symbol_change:false,width:'100%',height:'100%',support_host:'https://www.tradingview.com'}));host.replaceChildren(iframe);
+ iframe.src='https://www.tradingview-widget.com/embed-widget/advanced-chart/?locale='+language+'#'+encodeURIComponent(JSON.stringify({autosize:true,symbol,interval:'D',timezone:'Asia/Jerusalem',theme:'dark',style:'1',locale:language,allow_symbol_change:false,width:'100%',height:'100%',support_host:'https://www.tradingview.com'}));host.replaceChildren(iframe);
 }
 $('chart-source').onchange=e=>{chartSource=e.target.value;render();};
 function render(){
  if(!state)return;const s=state;if(!s.symbols[selected])selected=Object.keys(s.symbols)[0];const v=s.symbols[selected],signal=v.signal;if(!v)return;
  $('connection').textContent=s.daily.status==='ready'?'Дневная история подключена':s.daily.status==='loading'?'Загружается дневная история':s.daily.status==='paused'?'Очередь ожидает лимит':'Дневной источник требует настройки';
  const counts={};for(const x of Object.values(s.symbols))counts[x.signal.status]=(counts[x.signal.status]||0)+1;
- const search=$('scan-search').value.trim().toUpperCase();
+ const search=$('scan-search').value.trim().toUpperCase(),filters={search,status:$('scan-status').value,hideBelow:$('hide-below-sma').checked};
+ const shown=Object.entries(s.symbols).filter(([symbol,row])=>matchesFilter(symbol,row,filters));
+ $('scan-empty').hidden=shown.length>0;
+ $('selection-filter-note').hidden=matchesFilter(selected,v,filters);
  $('archive-progress').textContent=s.archive?'Архив: '+s.archive.loaded+' / '+s.archive.total+' акций · осталось загрузить: '+s.archive.pending+' · историческая симуляция готова: '+s.archive.simulated+' · запросов приложения сегодня: '+s.archive.requestsToday+' / '+s.archive.dailyBudget+'. '+s.daily.message+' · Yahoo: '+s.archive.sources.yahoo.used+' запросов без ключа · Twelve Data: '+s.archive.sources.twelvedata.used+' запросов':'';
- $('scan-summary').textContent='Проверяется '+Object.keys(s.symbols).length+' акций · кандидатов: '+(counts.candidate||0)+' · наблюдать: '+(counts.waiting||0)+' · исключено: '+(counts.excluded||0)+' · без данных: '+(counts.insufficient||0);
+ $('scan-summary').textContent='Проверяется '+Object.keys(s.symbols).length+' акций · кандидатов: '+(counts.candidate||0)+' · наблюдать: '+(counts.waiting||0)+' · исключено: '+(counts.excluded||0)+' · без данных: '+(counts.insufficient||0)+' · Показано: '+shown.length+' из '+Object.keys(s.symbols).length;
  $('universe-note').textContent=s.universe.name+'. '+s.universe.note;
  const table=document.createElement('table');const head=document.createElement('tr');for(const name of ['Акция','Статус','Дата данных','Причина'])head.append(el('th',name));table.append(head);
- for(const [symbol,x] of Object.entries(s.symbols)){if(search&&!symbol.includes(search))continue;const tr=document.createElement('tr');tr.tabIndex=0;tr.className='scan-row';tr.onclick=()=>selectSymbol(symbol);tr.onkeydown=e=>{if(e.key==='Enter')selectSymbol(symbol);};tr.append(el('td',symbol),el('td',labels[x.signal.status]),el('td',day(x.bars.at(-1)?.time)),el('td',x.signal.reasons[0]||'—'));table.append(tr);}
+ for(const [symbol,x] of Object.entries(s.symbols)){if(!matchesFilter(symbol,x,filters))continue;const tr=document.createElement('tr');tr.tabIndex=0;tr.className='scan-row';tr.onclick=()=>selectSymbol(symbol);tr.onkeydown=e=>{if(e.key==='Enter')selectSymbol(symbol);};tr.append(el('td',symbol),el('td',labels[x.signal.status]),el('td',day(x.bars.at(-1)?.time)),el('td',x.signal.reasons[0]||'—'));table.append(tr);}
  $('scan-table').replaceChildren(table);
- $('watch').replaceChildren();for(const [symbol,x] of Object.entries(s.symbols)){if(search&&!symbol.includes(search))continue;const button=el('button','','watch'+(selected===symbol?' active':''));const left=document.createElement('div');left.append(el('strong',symbol),el('div',labels[x.signal.status],'muted'));button.append(left,el('span',x.bars.length?fmt(x.bars.at(-1).close):'—'));button.onclick=()=>selectSymbol(symbol);$('watch').append(button);}
+ $('watch').replaceChildren();for(const [symbol,x] of Object.entries(s.symbols)){if(!matchesFilter(symbol,x,filters))continue;const button=el('button','','watch'+(selected===symbol?' active':''));const left=document.createElement('div');left.append(el('strong',symbol),el('div',labels[x.signal.status],'muted'));button.append(left,el('span',x.bars.length?fmt(x.bars.at(-1).close):'—'));button.onclick=()=>selectSymbol(symbol);$('watch').append(button);}
 
- const histories=Object.entries(s.symbols).filter(([,x])=>x.history);
+ const histories=Object.entries(s.symbols).filter(([symbol,x])=>x.history&&matchesFilter(symbol,x,filters));
  const allTable=document.createElement('table'),historyHead=document.createElement('tr');
  for(const title of ['Акция','Свечи','Сигналы','Отмены входа','Сделки'])historyHead.append(el('th',title));allTable.append(historyHead);
  let totalSignals=0,totalTrades=0;
@@ -68,7 +74,15 @@ function render(){
  $('analysis').textContent=v.analysis?.text||'Агент объяснит результаты после загрузки дневной истории. Сейчас расчётные уровни не подставляются.';
  $('analysis-time').textContent=v.analysis?'Анализ сформирован: '+date(v.analysis.generated)+' · исходная торговая дата: '+day(v.analysis.barStart):'';
  $('diagnostics').textContent=s.daily.message+' · модель: '+s.agent.model;$('errors').replaceChildren(...s.errors.slice(0,3).map(e=>el('p',date(e.at)+' · '+e.message)));
+ translateDOM(document.body,language);
 }
 let events;function openEvents(symbol){events?.close();events=new EventSource('/events'+(symbol?'?symbol='+encodeURIComponent(symbol):''));events.onmessage=e=>{state=JSON.parse(e.data);render();};events.onerror=()=>{$('connection').textContent='Нет связи с локальным сервером; экран может быть устаревшим';};}openEvents();$('scan-search').oninput=()=>render();
 
-document.querySelectorAll('.setup-link').forEach(link=>link.onclick=e=>{e.preventDefault();const block=$('source-settings');block.open=true;if(!$('settings-frame').src)$('settings-frame').src='/settings';block.scrollIntoView({behavior:'smooth',block:'start'});});
+document.querySelectorAll('.setup-link').forEach(link=>link.onclick=e=>{e.preventDefault();const block=$('source-settings');block.open=true;if(!$('settings-frame').src)$('settings-frame').src='/settings?lang='+language;block.scrollIntoView({behavior:'smooth',block:'start'});});
+
+$('ui-language').value=language;$('scan-status').value=preferences.status;$('hide-below-sma').checked=preferences.hideBelow;
+function storeUI(){savePreferences(localStorage,{language,status:$('scan-status').value,hideBelow:$('hide-below-sma').checked});}
+$('ui-language').onchange=e=>{language=validLanguage(e.target.value);document.documentElement.lang=language;storeUI();chart.applyOptions({localization:{locale:language==='en'?'en-US':'ru-RU'}});$('settings-frame').contentWindow?.postMessage({type:'ui-language',language},location.origin);if(state)render();else translateDOM(document.body,language);};
+$('scan-status').onchange=()=>{if($('scan-status').value==='belowSma150')$('hide-below-sma').checked=false;storeUI();render();};
+$('hide-below-sma').onchange=()=>{if($('hide-below-sma').checked&&$('scan-status').value==='belowSma150')$('scan-status').value='all';storeUI();render();};
+document.documentElement.lang=language;translateDOM(document.body,language);

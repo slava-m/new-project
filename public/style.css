@@ -9,3 +9,5 @@
 #pattern-warnings p{color:#e9b889}
 
 #scan-table,#universe-history{overflow:auto;max-height:560px}#scan-search{display:block;width:100%;max-width:420px;margin:10px 0;padding:10px;background:#0d1624;color:#fff;border:1px solid #33435b;border-radius:8px}
+
+.language-control{display:inline-flex;align-items:center;gap:8px;margin:0 16px 10px 0}.filter-controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:12px 0}.checkbox-label{display:flex;align-items:center;gap:8px}.filter-controls input[type=checkbox]{width:auto}select{background:#0d1624;color:#fff;border:1px solid #33435b;border-radius:6px;padding:8px}#scan-empty,#selection-filter-note{color:#e9b889}@media(max-width:600px){.language-control{display:flex}.filter-controls{align-items:flex-start;flex-direction:column}}

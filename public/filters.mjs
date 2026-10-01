@@ -1,0 +1,4 @@
+export const statusFilters=['all','actionable','candidate','waiting','excluded','insufficient','belowSma150'];
+export function matchesFilter(symbol,row,{search='',status='all',hideBelow=false}={}){if(search.trim()&&!symbol.toUpperCase().includes(search.trim().toUpperCase()))return false;if(hideBelow&&row.belowSma150===true)return false;if(status==='belowSma150')return row.belowSma150===true;if(status==='actionable')return ['candidate','waiting'].includes(row.signal.status);return status==='all'||row.signal.status===status;}
+export function readPreferences(storage){try{const value=JSON.parse(storage.getItem('research-ui-v1')||'{}');return {language:value.language==='en'?'en':'ru',status:statusFilters.includes(value.status)?value.status:'all',hideBelow:value.hideBelow===true};}catch{return {language:'ru',status:'all',hideBelow:false};}}
+export function savePreferences(storage,value){try{storage.setItem('research-ui-v1',JSON.stringify(value));}catch{}}
