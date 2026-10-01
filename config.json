@@ -31,5 +31,6 @@
     "minTurnover": 20000000,
     "version": "sma150-structures-v1"
   },
-  "analysisTimeframe": "1day"
+  "analysisTimeframe": "1day",
+  "dailyHistoryBars": 520
 }

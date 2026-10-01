@@ -17,10 +17,11 @@ export function normalizeDaily(payload,now=new Date()){
  if(!bars.length)throw Error('Завершённых дневных свечей нет');
  return bars;
 }
-export async function fetchDaily(symbol,apiKey,fetcher=fetch){
+export async function fetchDaily(symbol,apiKey,fetcher=fetch,outputsize=520){
  if(!apiKey)throw Error('Не настроен ключ поставщика дневных свечей');
+ if(!Number.isInteger(outputsize)||outputsize<1||outputsize>5000)throw Error('Некорректный размер истории');
  const url=new URL('https://api.twelvedata.com/time_series');
- for(const [k,v] of Object.entries({symbol,interval:'1day',outputsize:'250',order:'DESC',adjust:'splits',apikey:apiKey}))url.searchParams.set(k,v);
+ for(const [k,v] of Object.entries({symbol,interval:'1day',outputsize:String(outputsize),order:'DESC',adjust:'splits',apikey:apiKey}))url.searchParams.set(k,v);
  const res=await fetcher(url,{signal:AbortSignal.timeout(20000),redirect:'error'});
  if(!res.ok)throw Error('Поставщик данных: HTTP '+res.status);
  return normalizeDaily(await res.json());

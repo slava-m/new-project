@@ -30,7 +30,7 @@ for(const symbol of config.symbols){
 }
 db.exec('CREATE TABLE IF NOT EXISTS daily_history(symbol TEXT PRIMARY KEY,payload TEXT)'); const dailyMode=config.analysisTimeframe==='1day'; if(dailyMode){for(const [symbol,v] of Object.entries(state.symbols)){const saved=db.prepare('SELECT payload FROM daily_history WHERE symbol=?').get(symbol); v.bars=saved?JSON.parse(saved.payload):[];v.analysis=null;v.dataStatus='cached';v.barMode='Дневной кеш';} state.connectionMessage='Портфель IBKR отложен';} state.daily=dailyMode?{status:'checking',message:'Проверка источника дневных свечей'}:null;
 const clients=new Set(); let stopped=false,ib,attempt=0,generation=0,retryTimer,connectTimer;
-const keyPath=path.join(root,'data','provider-key.json'); let providerKey=process.env.TWELVEDATA_API_KEY||(fs.existsSync(keyPath)?JSON.parse(fs.readFileSync(keyPath,'utf8')).key:''); let dailyRunning=false;
+const keyPath=path.join(root,'data','provider-key.json'); let providerKey=process.env.TWELVEDATA_API_KEY||(fs.existsSync(keyPath)?JSON.parse(fs.readFileSync(keyPath,'utf8')).key:''); let dailyRunning=false;let nextDailyRequest=0;
 const queue=new Map();let busy=false,modelReady=false; const analyzed=new Map();
 const historyCache=new Map();
 function historyFor(symbol,v){const key=v.lastUpdate+':'+v.bars.length+':'+v.bars.at(-1)?.time;if(historyCache.get(symbol)?.key!==key)historyCache.set(symbol,{key,value:simulateHistory(v.bars,config.research)});return historyCache.get(symbol).value;}
@@ -147,7 +147,7 @@ async function refreshDaily(){ if(dailyRunning)return;
  if(!providerKey){state.daily={status:'unconfigured',message:'Для дневного анализа нужен ключ Twelve Data, сохранённый локально'};broadcast();return;}
  dailyRunning=true; state.daily={status:'loading',message:'Загрузка завершённых дневных свечей'};broadcast();
  let count=0;
- for(const symbol of config.symbols){try{const bars=await fetchDaily(symbol,providerKey);const v=state.symbols[symbol];v.bars=bars;v.dataStatus='ready';v.barMode='Twelve Data · дневные · split-adjusted';v.lastUpdate=Date.now();v.quote=null;v.quoteAt=null;db.prepare('INSERT INTO daily_history VALUES(?,?) ON CONFLICT(symbol) DO UPDATE SET payload=excluded.payload').run(symbol,JSON.stringify(bars));schedule(symbol,bars);count++;}catch(e){state.symbols[symbol].dataStatus='error';error(e.message.split(providerKey).join('[redacted]'));}}
+ for(const symbol of config.symbols){try{await new Promise(resolve=>setTimeout(resolve,Math.max(0,nextDailyRequest-Date.now())));nextDailyRequest=Date.now()+9000;const bars=await fetchDaily(symbol,providerKey,fetch,config.dailyHistoryBars||520);const v=state.symbols[symbol];v.bars=bars;v.dataStatus='ready';v.barMode='Twelve Data · дневные · split-adjusted';v.lastUpdate=Date.now();v.quote=null;v.quoteAt=null;db.prepare('INSERT INTO daily_history VALUES(?,?) ON CONFLICT(symbol) DO UPDATE SET payload=excluded.payload').run(symbol,JSON.stringify(bars));schedule(symbol,bars);count++;}catch(e){state.symbols[symbol].dataStatus='error';error(e.message.split(providerKey).join('[redacted]'));}}
  state.daily={status:count===config.symbols.length?'ready':'error',message:count===config.symbols.length?'Дневные свечи обновлены':'Не все дневные данные получены; см. диагностику'};dailyRunning=false;broadcast();
 }
 const dailyTimer=setInterval(()=>{if(dailyMode)refreshDaily();},6*3600000);
