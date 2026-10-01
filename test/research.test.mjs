@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {evaluateSetup,walkForward} from '../research.mjs';
+const fixture=()=>Array.from({length:22},(_,i)=>({time:1700000000+i*60,open:100,high:110,low:90,close:i===20?102:100,volume:i===20?200:100}));
+test('insufficient and stale data never become candidates',()=>{assert.equal(evaluateSetup(fixture().slice(0,5)).status,'insufficient');assert.equal(evaluateSetup(fixture().slice(0,21),{now:1800000000,connected:true}).status,'insufficient');});
+test('conditions drive candidate, not a model opinion',()=>{const b=fixture().slice(0,21);assert.equal(evaluateSetup(b,{maxRsi:101}).status,'candidate');assert.equal(evaluateSetup(b).status,'waiting');assert.equal(evaluateSetup(b,{maxRsi:101,minVolumeRatio:3}).status,'waiting');});
+test('no lookahead: changing next bar cannot alter decision',()=>{const b=fixture(),first=walkForward(b,{maxRsi:101});b[21]={...b[21],open:500,close:500,high:501,low:499};const second=walkForward(b,{maxRsi:101});assert.equal(first.events.length,1);assert.deepEqual(first.events[0].signal,second.events[0].signal);assert.equal(second.events[0].nextBarOpen,500);});
+test('gap blocks setup',()=>{const b=fixture().slice(0,21);b[20].time+=60;assert.equal(evaluateSetup(b).status,'insufficient');});

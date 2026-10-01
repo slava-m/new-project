@@ -1,0 +1,9 @@
+node_modules/
+data/
+*.sqlite*
+*.log
+*.exe
+.env*
+provider-key.json
+
+preview*.png

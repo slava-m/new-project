@@ -1,0 +1,22 @@
+{
+  "name": "Стартовый набор крупных компаний · 8 акций",
+  "mode": "starter subset, not full index scan",
+  "source": "https://www.invesco.com/us/en/financial-products/etfs/invesco-qqq-income-advantage-etf.html",
+  "sourceDate": "2026-09-28",
+  "note": "Стартовый набор по публичным holdings эмитента; не официальный полный состав индексов. Для полного S&P500/Nasdaq100/Russell1000 требуется актуальный перечень участников.",
+  "exclude": [
+    "NNE",
+    "SPY"
+  ],
+  "symbols": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "AMD",
+    "MU"
+  ],
+  "exchange": "NASDAQ"
+}

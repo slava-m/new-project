@@ -1,0 +1,35 @@
+{
+  "port": 8787,
+  "ibkr": {
+    "host": "127.0.0.1",
+    "port": 7497,
+    "clientId": 71,
+    "marketDataType": 1,
+    "enabled": false
+  },
+  "symbols": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "AMD",
+    "MU"
+  ],
+  "ollama": {
+    "url": "http://127.0.0.1:11434",
+    "model": "qwen2.5:7b"
+  },
+  "research": {
+    "maxHoldSessions": 10,
+    "stopAtr": 0.25,
+    "name": "SMA150 · опора и технические структуры",
+    "minRR": 2,
+    "nearAtr": 0.5,
+    "maxAgeDays": 7,
+    "minTurnover": 20000000,
+    "version": "sma150-structures-v1"
+  },
+  "analysisTimeframe": "1day"
+}

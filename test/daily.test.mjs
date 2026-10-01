@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {normalizeDaily} from '../daily.mjs';import {evaluateSetup} from '../research.mjs';
+const row=day=>({datetime:day,open:'100',high:'102',low:'99',close:'101',volume:'1000'});
+test('daily excludes current New York day and sorts',()=>{const b=normalizeDaily({values:[row('2026-10-01'),row('2026-09-30'),row('2026-09-29')]},new Date('2026-10-01T18:00:00Z'));assert.equal(b.length,2);assert.equal(new Date(b.at(-1).time*1000).toISOString().slice(0,10),'2026-09-30');});
+test('bad values and provider error rejected',()=>{assert.throws(()=>normalizeDaily({status:'error',message:'invalid key'}));assert.throws(()=>normalizeDaily({values:[{...row('2026-09-30'),high:'NaN'}]},new Date('2026-10-01')));});
+test('daily accepts weekend gap, unlike minute method',()=>{const bars=Array.from({length:21},(_,i)=>({time:1700000000+i*86400+(i>10?172800:0),open:100,high:102,low:99,close:100,volume:100}));assert.equal(evaluateSetup(bars,{timeframe:'1day'}).status,'waiting');assert.equal(evaluateSetup(bars).status,'insufficient');});
