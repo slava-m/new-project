@@ -22,7 +22,7 @@ function render(){
  $('connection').textContent=s.daily.status==='ready'?'Дневная история подключена':s.daily.status==='loading'?'Загружается дневная история':s.daily.status==='paused'?'Очередь ожидает лимит':'Дневной источник требует настройки';
  const counts={};for(const x of Object.values(s.symbols))counts[x.signal.status]=(counts[x.signal.status]||0)+1;
  const search=$('scan-search').value.trim().toUpperCase();
- $('archive-progress').textContent=s.archive?'Архив: '+s.archive.loaded+' / '+s.archive.total+' акций · осталось загрузить: '+s.archive.pending+' · историческая симуляция готова: '+s.archive.simulated+' · запросов приложения сегодня: '+s.archive.requestsToday+' / '+s.archive.dailyBudget+'. '+s.daily.message:'';
+ $('archive-progress').textContent=s.archive?'Архив: '+s.archive.loaded+' / '+s.archive.total+' акций · осталось загрузить: '+s.archive.pending+' · историческая симуляция готова: '+s.archive.simulated+' · запросов приложения сегодня: '+s.archive.requestsToday+' / '+s.archive.dailyBudget+'. '+s.daily.message+' · Yahoo: '+s.archive.sources.yahoo.used+' запросов без ключа · Twelve Data: '+s.archive.sources.twelvedata.used+' запросов':'';
  $('scan-summary').textContent='Проверяется '+Object.keys(s.symbols).length+' акций · кандидатов: '+(counts.candidate||0)+' · наблюдать: '+(counts.waiting||0)+' · исключено: '+(counts.excluded||0)+' · без данных: '+(counts.insufficient||0);
  $('universe-note').textContent=s.universe.name+'. '+s.universe.note;
  const table=document.createElement('table');const head=document.createElement('tr');for(const name of ['Акция','Статус','Дата данных','Причина'])head.append(el('th',name));table.append(head);
@@ -39,7 +39,7 @@ function render(){
  $('universe-history-summary').textContent='Проверено акций: '+histories.length+' из '+Object.keys(s.symbols).length+' · сигналов: '+totalSignals+' · завершённых сделок: '+totalTrades+'. Каждая акция моделируется отдельно; это не общий портфель. Нажмите строку для деталей.';
  $('symbol').textContent=selected+' / USD';$('feed').textContent=chartSource==='tv'?'TradingView · задержка определяется источником':'Дневные свечи · не live';
  $('tv-chart').hidden=chartSource!=='tv';$('chart').hidden=chartSource!=='local'||!v.bars.length;$('chart-empty').hidden=chartSource!=='local'||!!v.bars.length;
- $('source-note').textContent=widgetFailed?'TradingView не загрузился; проверьте интернет.':chartSource==='tv'?'Публичный дневной график через интернет. Числовая история и агент получают данные отдельно.':'История из Twelve Data. Последний незавершённый торговый день исключён.';
+ $('source-note').textContent=widgetFailed?'TradingView не загрузился; проверьте интернет.':chartSource==='tv'?'Публичный график TradingView. Числовая история для агента: '+(v.dataProvider?v.barMode:'ожидается загрузка')+'.':'Источник: '+(v.barMode||'ожидается')+'. Последний незавершённый торговый день исключён.';
  if(chartSource==='tv')widget();
  $('empty-reason').textContent=s.daily.message;
  const last=v.bars.at(-1),key=selected+':'+v.bars.length+':'+JSON.stringify(last);

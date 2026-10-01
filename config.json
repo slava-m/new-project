@@ -19,7 +19,13 @@
   ],
   "ollama": {
     "url": "http://127.0.0.1:11434",
-    "model": "qwen2.5:7b"
+    "model": "qwen2.5:14b",
+    "options": {
+      "num_ctx": 4096,
+      "num_batch": 256,
+      "num_predict": 80,
+      "temperature": 0
+    }
   },
   "research": {
     "maxHoldSessions": 10,

@@ -26,3 +26,7 @@ Ollama установлена. Qwen2.5:7b загружена; проверка �
 
 ## S&P500 archive queue
 503 listed equity holdings from official iShares IVV CSV, dated Sep 30 2026. Persistent SQLite quota and fetch metadata, 9-second spacing, 750 local requests per UTC day, provider-limit pause, daily refresh and retry. 51 unit tests passed. Browser check passed for complete list, progress, search, selected-symbol detail, NYSE chart, clearing unavailable history and mobile layout. Initial archive is progressively populated; full completion is not claimed.
+
+## Free multi-source data and larger local model
+Yahoo chart endpoint returned 500 completed daily OHLCV bars for AAPL, BRK.B and JPM with no API key. Stooq returned HTTP403 and was not connected. Yahoo is primary; Twelve Data Basic is reserved fallback, with independent persisted pacing/budgets. Tests cover symbol/currency identity, current-session exclusion, invalid arrays/OHLC, keyless requests, one-shot fallback, source isolation, budget denial and key redaction. All 57 unit tests passed; full-universe browser verification passed.
+Qwen2.5 14B Q4_K_M downloaded, SHA verification succeeded. Ollama /api/ps reported model fully resident in GPU memory (size_vram equals size, 9.4 GB), context4096. NVIDIA observation during generation: 67% utilization. Model-confirmed real report was produced; model role remains deterministic-status verification, not independent numerical trading decisions.
