@@ -9,9 +9,9 @@ const chart=LightweightCharts.createChart($('chart'),{autoSize:true,layout:{back
 const candles=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#66cdb0',downColor:'#ef7c81',borderVisible:false,wickUpColor:'#66cdb0',wickDownColor:'#ef7c81'});
 const volume=chart.addSeries(LightweightCharts.HistogramSeries,{priceFormat:{type:'volume'},priceScaleId:'volume'});
 volume.priceScale().applyOptions({scaleMargins:{top:0.8,bottom:0}});candles.priceScale().applyOptions({scaleMargins:{top:0.08,bottom:0.25}});
-function selectSymbol(s){selected=s;fitted=false;chartKey='';render();}
+function selectSymbol(s){selected=s;fitted=false;chartKey='';openEvents(s);}
 function widget(){
- const symbol='NASDAQ:'+selected;if(widgetSymbol===symbol)return;widgetSymbol=symbol;widgetFailed=false;
+ const symbol=(state.universe.members?.find(m=>m.symbol===selected)?.exchange||'NASDAQ')+':'+selected.replace('.', '-');if(widgetSymbol===symbol)return;widgetSymbol=symbol;widgetFailed=false;
  const host=$('tv-chart');host.replaceChildren();const target=document.createElement('div');target.className='tradingview-widget-container__widget';host.append(target);
  const iframe=document.createElement('iframe');iframe.title='Дневной график TradingView';iframe.style.cssText='width:100%;height:100%;border:0';
  iframe.src='https://www.tradingview-widget.com/embed-widget/advanced-chart/?locale=ru#'+encodeURIComponent(JSON.stringify({autosize:true,symbol,interval:'D',timezone:'Asia/Jerusalem',theme:'dark',style:'1',locale:'ru',allow_symbol_change:false,width:'100%',height:'100%',support_host:'https://www.tradingview.com'}));host.replaceChildren(iframe);
@@ -19,14 +19,16 @@ function widget(){
 $('chart-source').onchange=e=>{chartSource=e.target.value;render();};
 function render(){
  if(!state)return;const s=state;if(!s.symbols[selected])selected=Object.keys(s.symbols)[0];const v=s.symbols[selected],signal=v.signal;if(!v)return;
- $('connection').textContent=s.daily.status==='ready'?'Дневная история подключена':s.daily.status==='loading'?'Загружается дневная история':'Дневной источник требует настройки';
+ $('connection').textContent=s.daily.status==='ready'?'Дневная история подключена':s.daily.status==='loading'?'Загружается дневная история':s.daily.status==='paused'?'Очередь ожидает лимит':'Дневной источник требует настройки';
  const counts={};for(const x of Object.values(s.symbols))counts[x.signal.status]=(counts[x.signal.status]||0)+1;
+ const search=$('scan-search').value.trim().toUpperCase();
+ $('archive-progress').textContent=s.archive?'Архив: '+s.archive.loaded+' / '+s.archive.total+' акций · осталось загрузить: '+s.archive.pending+' · историческая симуляция готова: '+s.archive.simulated+' · запросов приложения сегодня: '+s.archive.requestsToday+' / '+s.archive.dailyBudget+'. '+s.daily.message:'';
  $('scan-summary').textContent='Проверяется '+Object.keys(s.symbols).length+' акций · кандидатов: '+(counts.candidate||0)+' · наблюдать: '+(counts.waiting||0)+' · исключено: '+(counts.excluded||0)+' · без данных: '+(counts.insufficient||0);
  $('universe-note').textContent=s.universe.name+'. '+s.universe.note;
  const table=document.createElement('table');const head=document.createElement('tr');for(const name of ['Акция','Статус','Дата данных','Причина'])head.append(el('th',name));table.append(head);
- for(const [symbol,x] of Object.entries(s.symbols)){const tr=document.createElement('tr');tr.tabIndex=0;tr.className='scan-row';tr.onclick=()=>selectSymbol(symbol);tr.onkeydown=e=>{if(e.key==='Enter')selectSymbol(symbol);};tr.append(el('td',symbol),el('td',labels[x.signal.status]),el('td',day(x.bars.at(-1)?.time)),el('td',x.signal.reasons[0]||'—'));table.append(tr);}
+ for(const [symbol,x] of Object.entries(s.symbols)){if(search&&!symbol.includes(search))continue;const tr=document.createElement('tr');tr.tabIndex=0;tr.className='scan-row';tr.onclick=()=>selectSymbol(symbol);tr.onkeydown=e=>{if(e.key==='Enter')selectSymbol(symbol);};tr.append(el('td',symbol),el('td',labels[x.signal.status]),el('td',day(x.bars.at(-1)?.time)),el('td',x.signal.reasons[0]||'—'));table.append(tr);}
  $('scan-table').replaceChildren(table);
- $('watch').replaceChildren();for(const [symbol,x] of Object.entries(s.symbols)){const button=el('button','','watch'+(selected===symbol?' active':''));const left=document.createElement('div');left.append(el('strong',symbol),el('div',labels[x.signal.status],'muted'));button.append(left,el('span',x.bars.length?fmt(x.bars.at(-1).close):'—'));button.onclick=()=>selectSymbol(symbol);$('watch').append(button);}
+ $('watch').replaceChildren();for(const [symbol,x] of Object.entries(s.symbols)){if(search&&!symbol.includes(search))continue;const button=el('button','','watch'+(selected===symbol?' active':''));const left=document.createElement('div');left.append(el('strong',symbol),el('div',labels[x.signal.status],'muted'));button.append(left,el('span',x.bars.length?fmt(x.bars.at(-1).close):'—'));button.onclick=()=>selectSymbol(symbol);$('watch').append(button);}
 
  const histories=Object.entries(s.symbols).filter(([,x])=>x.history);
  const allTable=document.createElement('table'),historyHead=document.createElement('tr');
@@ -34,7 +36,7 @@ function render(){
  let totalSignals=0,totalTrades=0;
  for(const [symbol,x] of histories){const h=x.history,row=document.createElement('tr');row.className='scan-row';row.tabIndex=0;row.onclick=()=>selectSymbol(symbol);row.onkeydown=e=>{if(e.key==='Enter')selectSymbol(symbol);};for(const value of [symbol,h.coverage.bars,h.signals,h.skipped+h.expired,h.metrics.closedTrades])row.append(el('td',String(value)));allTable.append(row);totalSignals+=h.signals;totalTrades+=h.metrics.closedTrades;}
  $('universe-history').replaceChildren(allTable);
- $('universe-history-summary').textContent='Проверено акций: '+histories.length+' · сигналов: '+totalSignals+' · завершённых сделок: '+totalTrades+'. Каждая акция моделируется отдельно; это не общий портфель. Нажмите строку для деталей.';
+ $('universe-history-summary').textContent='Проверено акций: '+histories.length+' из '+Object.keys(s.symbols).length+' · сигналов: '+totalSignals+' · завершённых сделок: '+totalTrades+'. Каждая акция моделируется отдельно; это не общий портфель. Нажмите строку для деталей.';
  $('symbol').textContent=selected+' / USD';$('feed').textContent=chartSource==='tv'?'TradingView · задержка определяется источником':'Дневные свечи · не live';
  $('tv-chart').hidden=chartSource!=='tv';$('chart').hidden=chartSource!=='local'||!v.bars.length;$('chart-empty').hidden=chartSource!=='local'||!!v.bars.length;
  $('source-note').textContent=widgetFailed?'TradingView не загрузился; проверьте интернет.':chartSource==='tv'?'Публичный дневной график через интернет. Числовая история и агент получают данные отдельно.':'История из Twelve Data. Последний незавершённый торговый день исключён.';
@@ -60,13 +62,13 @@ function render(){
  const table=document.createElement('table'),head=document.createElement('tr');for(const label of ['Вход / выход','Вход → выход, USD','Результат, USD','Причина выхода'])head.append(el('th',label));table.append(head);
  for(const t of h.trades.slice(-10)){const row=document.createElement('tr');row.append(el('td',day(t.entryTime)+' / '+day(t.exitTime)),el('td',fmt(t.entry)+' → '+fmt(t.exit)),el('td',fmt(t.net)),el('td',t.exitReason));table.append(row);}
  if(!h.trades.length)$('history-trades').textContent='Завершённых сделок нет: статистика прибыльности не рассчитана.';else $('history-trades').replaceChildren(table);
- }
+ }else{ $('history-summary').textContent='Ожидается загрузка истории или фоновая симуляция '+selected; $('history-settings').textContent=''; $('history-metrics').replaceChildren(); $('history-trades').replaceChildren(); $('history-note').textContent='Нет рассчитанной статистики для этой акции.';}
 
  $('agent-status').textContent=s.agent.status==='ready'&&!v.bars.length?'Модель готова · ожидает историю':s.agent.message;
  $('analysis').textContent=v.analysis?.text||'Агент объяснит результаты после загрузки дневной истории. Сейчас расчётные уровни не подставляются.';
  $('analysis-time').textContent=v.analysis?'Анализ сформирован: '+date(v.analysis.generated)+' · исходная торговая дата: '+day(v.analysis.barStart):'';
  $('diagnostics').textContent=s.daily.message+' · модель: '+s.agent.model;$('errors').replaceChildren(...s.errors.slice(0,3).map(e=>el('p',date(e.at)+' · '+e.message)));
 }
-const events=new EventSource('/events');events.onmessage=e=>{state=JSON.parse(e.data);render();};events.onerror=()=>{$('connection').textContent='Нет связи с локальным сервером; экран может быть устаревшим';};
+let events;function openEvents(symbol){events?.close();events=new EventSource('/events'+(symbol?'?symbol='+encodeURIComponent(symbol):''));events.onmessage=e=>{state=JSON.parse(e.data);render();};events.onerror=()=>{$('connection').textContent='Нет связи с локальным сервером; экран может быть устаревшим';};}openEvents();$('scan-search').oninput=()=>render();
 
 document.querySelectorAll('.setup-link').forEach(link=>link.onclick=e=>{e.preventDefault();const block=$('source-settings');block.open=true;if(!$('settings-frame').src)$('settings-frame').src='/settings';block.scrollIntoView({behavior:'smooth',block:'start'});});

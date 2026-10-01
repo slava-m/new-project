@@ -7,3 +7,5 @@
 #history-trades{overflow:auto}#history-note{overflow-wrap:anywhere}
 
 #pattern-warnings p{color:#e9b889}
+
+#scan-table,#universe-history{overflow:auto;max-height:560px}#scan-search{display:block;width:100%;max-width:420px;margin:10px 0;padding:10px;background:#0d1624;color:#fff;border:1px solid #33435b;border-radius:8px}

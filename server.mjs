@@ -1,4 +1,6 @@
 import http from 'node:http';
+import {Worker} from 'node:worker_threads';
+import {archiveDefaults,nextArchiveJob,consumeArchiveCredit,utcDay} from './archive.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -8,7 +10,6 @@ import {indicators,validBar,splitClosed} from './indicators.mjs';
 import {evaluateStrategy as evaluateSetup} from './strategy.mjs';
 import {fetchDaily} from './daily.mjs';
 import {buildReport,validateAssessment} from './report.mjs';
-import {simulateHistory} from './backtest.mjs';
 const require=createRequire(import.meta.url);
 const {IBApi,EventName}=require('@stoqey/ib');
 const root=path.dirname(fileURLToPath(import.meta.url));
@@ -30,12 +31,23 @@ for(const symbol of config.symbols){
 }
 db.exec('CREATE TABLE IF NOT EXISTS daily_history(symbol TEXT PRIMARY KEY,payload TEXT)'); const dailyMode=config.analysisTimeframe==='1day'; if(dailyMode){for(const [symbol,v] of Object.entries(state.symbols)){const saved=db.prepare('SELECT payload FROM daily_history WHERE symbol=?').get(symbol); v.bars=saved?JSON.parse(saved.payload):[];v.analysis=null;v.dataStatus='cached';v.barMode='Дневной кеш';} state.connectionMessage='Портфель IBKR отложен';} state.daily=dailyMode?{status:'checking',message:'Проверка источника дневных свечей'}:null;
 const clients=new Set(); let stopped=false,ib,attempt=0,generation=0,retryTimer,connectTimer;
-const keyPath=path.join(root,'data','provider-key.json'); let providerKey=process.env.TWELVEDATA_API_KEY||(fs.existsSync(keyPath)?JSON.parse(fs.readFileSync(keyPath,'utf8')).key:''); let dailyRunning=false;let nextDailyRequest=0;
+const keyPath=path.join(root,'data','provider-key.json'); let providerKey=process.env.TWELVEDATA_API_KEY||(fs.existsSync(keyPath)?JSON.parse(fs.readFileSync(keyPath,'utf8')).key:''); let dailyRunning=false;
+db.exec('CREATE TABLE IF NOT EXISTS archive_meta(symbol TEXT PRIMARY KEY,payload TEXT); CREATE TABLE IF NOT EXISTS archive_quota(id INTEGER PRIMARY KEY,payload TEXT)');
+const archiveMeta=Object.fromEntries(db.prepare('SELECT symbol,payload FROM archive_meta').all().map(r=>[r.symbol,JSON.parse(r.payload)]));let archiveQuota=JSON.parse(db.prepare('SELECT payload FROM archive_quota WHERE id=1').get()?.payload||'{}');
+function saveMeta(symbol,value){archiveMeta[symbol]=value;db.prepare('INSERT INTO archive_meta VALUES(?,?) ON CONFLICT(symbol) DO UPDATE SET payload=excluded.payload').run(symbol,JSON.stringify(value));}
+function saveQuota(){db.prepare('INSERT INTO archive_quota VALUES(1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(JSON.stringify(archiveQuota));}
 const queue=new Map();let busy=false,modelReady=false; const analyzed=new Map();
-const historyCache=new Map();
-function historyFor(symbol,v){const key=v.lastUpdate+':'+v.bars.length+':'+v.bars.at(-1)?.time;if(historyCache.get(symbol)?.key!==key)historyCache.set(symbol,{key,value:simulateHistory(v.bars,config.research)});return historyCache.get(symbol).value;}
-function snapshot(){return {...state,universe,strategy:config.research,positions:state.positions.map(({key,...p})=>p),now:Date.now(),symbols:Object.fromEntries(Object.entries(state.symbols).map(([s,v])=>[s,{...v,history:dailyMode?historyFor(s,v):null,bars:v.bars.slice(-1000),signal:evaluateSetup(dailyMode?v.bars:splitClosed(v.bars),{...config.research,now:Date.now()/1000,connected:dailyMode?v.dataStatus==='ready':state.connection==='connected'&&v.barMode!=='cached'}),quoteStale:!v.quoteAt||Date.now()-v.quoteAt>90000,barStale:!v.bars.length||Date.now()/1000-v.bars.at(-1).time>(dailyMode?8*86400:180)}]))};}
-function broadcast(){const msg='data: '+JSON.stringify(snapshot())+'\n\n';for(const res of clients)res.write(msg);}
+const historyCache=new Map(),signalCache=new Map(),historyQueue=new Map();let historyBusy=null;
+const historyWorker=new Worker(new URL('./history-worker.mjs',import.meta.url));
+function revision(v){return v.lastUpdate+':'+v.bars.length+':'+v.bars.at(-1)?.time;}
+function signalFor(symbol,v){const key=revision(v)+':'+v.dataStatus+':'+Math.floor(Date.now()/60000);if(signalCache.get(symbol)?.key!==key)signalCache.set(symbol,{key,value:evaluateSetup(dailyMode?v.bars:splitClosed(v.bars),{...config.research,now:Date.now()/1000,connected:dailyMode?!!v.bars.length:state.connection==='connected'&&v.barMode!=='cached'})});return signalCache.get(symbol).value;}
+function historyFor(symbol,v){return historyCache.get(symbol)?.key===revision(v)?historyCache.get(symbol).value:null;}
+function queueHistory(symbol){const v=state.symbols[symbol];if(!v.bars.length)return;historyQueue.set(symbol,{symbol,bars:v.bars,options:config.research,revision:revision(v)});pumpHistory();}
+function pumpHistory(){if(historyBusy||!historyQueue.size||stopped)return;const [symbol,job]=historyQueue.entries().next().value;historyQueue.delete(symbol);historyBusy=job;historyWorker.postMessage(job);}
+historyWorker.on('message',job=>{historyBusy=null;const v=state.symbols[job.symbol];if(job.history&&job.revision===revision(v)){historyCache.set(job.symbol,{key:job.revision,value:job.history});if(!v.analysis)v.analysis={generated:Date.now(),barStart:v.bars.at(-1).time,text:buildReport({symbol:job.symbol,bars:v.bars,signal:signalFor(job.symbol,v),modelConfirmed:false})};}if(job.error)state.errors.unshift({at:Date.now(),message:job.error});broadcast();pumpHistory();});
+historyWorker.on('error',()=>{historyBusy=null;state.errors.unshift({at:Date.now(),message:'Фоновая историческая симуляция остановилась'});broadcast();});
+function snapshot(detailSymbol=config.symbols[0]){const rows=Object.fromEntries(Object.entries(state.symbols).map(([symbol,v])=>{const full=symbol===detailSymbol,signal=signalFor(symbol,v),h=historyFor(symbol,v);return [symbol,{...v,bars:full?v.bars.slice(-1000):v.bars.slice(-1),barCount:v.bars.length,analysis:full?v.analysis:null,history:h?(full?h:{coverage:h.coverage,signals:h.signals,skipped:h.skipped,expired:h.expired,metrics:h.metrics}):null,signal:full?signal:{status:signal.status,reasons:signal.reasons.slice(0,1)},quoteStale:!v.quoteAt||Date.now()-v.quoteAt>90000,barStale:!v.bars.length||Date.now()/1000-v.bars.at(-1).time>(dailyMode?8*86400:180)}];}));const loaded=Object.values(state.symbols).filter(v=>v.bars.length).length;return {...state,universe,strategy:config.research,positions:state.positions.map(({key,...p})=>p),now:Date.now(),archive:{total:config.symbols.length,loaded,pending:config.symbols.length-loaded,simulated:historyCache.size,requestsToday:archiveQuota.day===utcDay(Date.now())?archiveQuota.used||0:0,dailyBudget:archiveDefaults.dailyBudget,nextRequest:archiveQuota.nextAt||null,pauseUntil:archiveQuota.pauseUntil||null,historyQueue:historyQueue.size+Number(!!historyBusy),modelQueue:queue.size+Number(busy)},symbols:rows};}
+function broadcast(){for(const client of clients)client.res.write('data: '+JSON.stringify(snapshot(client.symbol))+'\n\n');}
 function error(message,code,id){state.errors.unshift({at:Date.now(),message:String(message),code,id});state.errors=state.errors.slice(0,12);broadcast();}
 async function checkModel(){
  try {const res=await fetch(new URL('/api/tags',ollamaUrl),{signal:AbortSignal.timeout(4000),redirect:'error'});if(!res.ok)throw Error('HTTP '+res.status);
@@ -136,20 +148,24 @@ if(req.method==='POST'&&req.url==='/api/provider'){
 }
 if(req.method!=='GET'){res.writeHead(405);return res.end();}
  const url=new URL(req.url,'http://localhost');
- if(url.pathname==='/api/state'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify(snapshot()));}
- if(url.pathname==='/events'){res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive'});clients.add(res);res.write('data: '+JSON.stringify(snapshot())+'\n\n');req.on('close',()=>clients.delete(res));return;}
+ if(url.pathname==='/api/state'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify(snapshot(url.searchParams.get('symbol')||config.symbols[0])));}
+ if(url.pathname==='/events'){res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive'});const client={res,symbol:config.symbols.includes(url.searchParams.get('symbol'))?url.searchParams.get('symbol'):config.symbols[0]};clients.add(client);res.write('data: '+JSON.stringify(snapshot(client.symbol))+'\n\n');req.on('close',()=>clients.delete(client));return;}
  const route=routes[url.pathname];if(!route){res.writeHead(404);return res.end('Not found');}
  res.setHeader('Content-Type',route[1]);fs.createReadStream(path.join(root,route[0])).on('error',()=>res.destroy()).pipe(res);
 });
-const beat=setInterval(broadcast,1000);const modelCheck=setInterval(checkModel,30000);
-server.listen(config.port,'127.0.0.1',()=>{console.log('Local panel: http://127.0.0.1:'+config.port);if(config.ibkr.enabled!==false)connect();if(dailyMode)refreshDaily();checkModel();});
-async function refreshDaily(){ if(dailyRunning)return;
+const beat=setInterval(broadcast,15000);const modelCheck=setInterval(checkModel,30000);
+server.listen(config.port,'127.0.0.1',()=>{console.log('Local panel: http://127.0.0.1:'+config.port);if(config.ibkr.enabled!==false)connect();if(dailyMode){for(const symbol of config.symbols)queueHistory(symbol);refreshDaily();}checkModel();});
+async function refreshDaily(){if(dailyRunning||stopped)return;
  if(!providerKey){state.daily={status:'unconfigured',message:'Для дневного анализа нужен ключ Twelve Data, сохранённый локально'};broadcast();return;}
- dailyRunning=true; state.daily={status:'loading',message:'Загрузка завершённых дневных свечей'};broadcast();
- let count=0;
- for(const symbol of config.symbols){try{await new Promise(resolve=>setTimeout(resolve,Math.max(0,nextDailyRequest-Date.now())));nextDailyRequest=Date.now()+9000;const bars=await fetchDaily(symbol,providerKey,fetch,config.dailyHistoryBars||520);const v=state.symbols[symbol];v.bars=bars;v.dataStatus='ready';v.barMode='Twelve Data · дневные · split-adjusted';v.lastUpdate=Date.now();v.quote=null;v.quoteAt=null;db.prepare('INSERT INTO daily_history VALUES(?,?) ON CONFLICT(symbol) DO UPDATE SET payload=excluded.payload').run(symbol,JSON.stringify(bars));schedule(symbol,bars);count++;}catch(e){state.symbols[symbol].dataStatus='error';error(e.message.split(providerKey).join('[redacted]'));}}
- state.daily={status:count===config.symbols.length?'ready':'error',message:count===config.symbols.length?'Дневные свечи обновлены':'Не все дневные данные получены; см. диагностику'};dailyRunning=false;broadcast();
+ dailyRunning=true;
+ try{const job=nextArchiveJob(config.symbols,archiveMeta,archiveQuota,Date.now());
+ if(!job.symbol){state.daily={status:job.reason==='up-to-date'?'ready':job.reason==='minute-budget'?'loading':'paused',message:job.reason==='up-to-date'?'Локальный архив обновлён; следующая проверка по расписанию':job.reason==='minute-budget'?'Постепенная загрузка: ожидание следующего разрешённого запроса':'Загрузка приостановлена до восстановления бесплатного лимита'};return;}
+ const symbol=job.symbol;state.daily={status:'loading',message:'Загружается двухлетняя дневная история '+symbol};broadcast();
+ archiveQuota=consumeArchiveCredit(archiveQuota,Date.now());saveQuota();
+ try{const bars=await fetchDaily(symbol,providerKey,fetch,config.dailyHistoryBars||520),v=state.symbols[symbol];v.bars=bars;v.dataStatus='ready';v.barMode='Twelve Data · дневные · split-adjusted';v.lastUpdate=Date.now();v.quote=null;v.quoteAt=null;db.prepare('INSERT INTO daily_history VALUES(?,?) ON CONFLICT(symbol) DO UPDATE SET payload=excluded.payload').run(symbol,JSON.stringify(bars));saveMeta(symbol,{fetchedAt:Date.now(),retryAt:0,status:'ready'});queueHistory(symbol);schedule(symbol,bars);state.daily.message='История '+symbol+' сохранена; очередь продолжается';}
+ catch(e){const message=String(e.message).split(providerKey).join('[redacted]');const limit=/429|credits|limit|quota/i.test(message);if(limit){archiveQuota.pauseUntil=/daily|day|800/i.test(message)?Date.parse(utcDay(Date.now())+'T00:00:00Z')+86400000:Date.now()+60000;saveQuota();}else saveMeta(symbol,{...archiveMeta[symbol],retryAt:Date.now()+archiveDefaults.errorRetryMs,status:'error'});state.symbols[symbol].dataStatus=state.symbols[symbol].bars.length?'cached':'error';state.daily={status:limit?'paused':'loading',message:limit?'Источник ограничил запросы; очередь сохранена и продолжится автоматически':'Не удалось получить '+symbol+'; очередь продолжает другие акции'};error(message);}
+ }finally{dailyRunning=false;broadcast();}
 }
-const dailyTimer=setInterval(()=>{if(dailyMode)refreshDaily();},6*3600000);
-function shutdown(){clearInterval(dailyTimer);stopped=true;clearInterval(beat);clearInterval(modelCheck);clearTimeout(retryTimer);clearTimeout(connectTimer);ib?.disconnect();for(const res of clients)res.end();server.close(()=>{db.close();process.exit(0);});}
+const dailyTimer=setInterval(()=>{if(dailyMode)refreshDaily();},1000);
+function shutdown(){clearInterval(dailyTimer);stopped=true;clearInterval(beat);clearInterval(modelCheck);clearTimeout(retryTimer);clearTimeout(connectTimer);ib?.disconnect();historyWorker.terminate();for(const client of clients)client.res.end();server.close(()=>{db.close();process.exit(0);});}
 process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown);

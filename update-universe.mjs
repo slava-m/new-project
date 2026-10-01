@@ -1,0 +1,6 @@
+import fs from 'node:fs';import {holdingsSource,parseHoldings} from './universe.mjs';
+const response=await fetch(holdingsSource,{signal:AbortSignal.timeout(30000)});if(!response.ok)throw Error('Holdings HTTP '+response.status);
+const {asOf,members,excluded}=parseHoldings(await response.text());if(members.length<450||members.length>550)throw Error('Unexpected S&P500 equity count');
+const previous=JSON.parse(fs.readFileSync('universe.json','utf8'));const exclude=previous.exclude||['NNE','SPY'];const order=[...(previous.symbols||[]).filter(s=>members.some(m=>m.symbol===s)),...members.map(m=>m.symbol)];const symbols=[...new Set(order)].filter(s=>!exclude.includes(s));
+const universe={name:'S&P 500 · '+symbols.length+' акций',mode:'S&P500 ETF equity holdings proxy',source:holdingsSource,sourceDate:asOf,retrievedAt:new Date().toISOString(),note:'Полный список акций из holdings iShares IVV; прокси состава S&P 500 на указанную дату, не лицензированный реестр индекса. Разные классы акций учитываются отдельно; наличные и деривативы исключены.',exclude,symbols,members,excludedHoldings:excluded};
+fs.writeFileSync('universe.json',JSON.stringify(universe,null,2)+'\n');console.log(JSON.stringify({stocks:symbols.length,asOf,NYSE:members.filter(m=>m.exchange==='NYSE').length,NASDAQ:members.filter(m=>m.exchange==='NASDAQ').length}));

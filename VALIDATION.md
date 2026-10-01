@@ -23,3 +23,6 @@ Ollama установлена. Qwen2.5:7b загружена; проверка �
 
 ## Размер локальной истории
 33 теста прошли. Проверены увеличенный размер запроса 520, split-adjusted данные и запрет размера более 5000. Часовые свечи не подключались: интервал 1day.
+
+## S&P500 archive queue
+503 listed equity holdings from official iShares IVV CSV, dated Sep 30 2026. Persistent SQLite quota and fetch metadata, 9-second spacing, 750 local requests per UTC day, provider-limit pause, daily refresh and retry. 51 unit tests passed. Browser check passed for complete list, progress, search, selected-symbol detail, NYSE chart, clearing unavailable history and mobile layout. Initial archive is progressively populated; full completion is not claimed.
