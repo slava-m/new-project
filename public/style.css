@@ -5,3 +5,5 @@
 .setup-link{color:#69cbb6}.scan-summary{background:#111b2a;border:1px solid #25344b;border-radius:14px;padding:20px;margin-bottom:24px}#scan-table{overflow:auto}.scan-row{cursor:pointer}.scan-row:hover{background:#1c2a3f}.settings{display:block;max-width:720px;margin:50px auto}.settings input{display:block;background:#0d1624;color:#fff;border:1px solid #33435b;padding:12px;width:100%;margin:12px 0}.settings button{background:#69cbb6;color:#0b111b;border:0;padding:12px;border-radius:8px;cursor:pointer}.settings a{color:#69cbb6}#plan>p{width:100%}#watch{max-height:650px;overflow:auto}
 
 #history-trades{overflow:auto}#history-note{overflow-wrap:anywhere}
+
+#pattern-warnings p{color:#e9b889}

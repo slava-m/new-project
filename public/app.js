@@ -37,9 +37,11 @@ function render(){
  $('freshness').textContent='Данные для расчётов: '+v.barMode+' · '+v.bars.length+' свечей · последняя торговая дата: '+day(last?.time)+' · получены: '+date(v.lastUpdate)+(v.barStale?' · нет свежей истории':'');
  $('signal-status').textContent=labels[signal.status];$('signal-method').textContent=signal.method+' · дата расчёта по свечам: '+day(last?.time);
  $('signal-reasons').replaceChildren(...signal.reasons.map(r=>el('p',r,'muted')));
- $('patterns').replaceChildren(...signal.patterns.map(p=>el('p',p.type+' · '+(p.state==='breakout'?'пробой по закрытию':'предварительная структура')+' · '+p.rule,'muted')));
+ $('supported-patterns').textContent='Поддерживаются '+signal.supportedPatterns.length+' моделей: '+signal.supportedPatterns.join(', ');
+ $('pattern-warnings').replaceChildren(...signal.warnings.map(r=>el('p',r,'muted')));
+ $('patterns').replaceChildren(...signal.patterns.map(p=>el('p',p.type+' · '+(({forming:'предварительная структура',breakout:'пробой вверх',breakdown:'пробой вниз',confirmed:'свечная модель подтверждена',invalidated:'отменена'})[p.state]+' · '+p.direction)+' · '+p.rule,'muted')));
  $('facts').replaceChildren();for(const [label,name] of [['SMA20','sma20'],['SMA50','sma50'],['SMA150','sma150'],['ATR14 (Wilder)','atr14']])fact($('facts'),label,fmt(signal.facts?.[name]));
- $('plan').replaceChildren();if(signal.plan){for(const [label,name] of [['Условный вход','entry'],['Стоп по структуре','stop'],['Расчётная цель','target'],['RR до издержек','rr']])fact($('plan'),label,fmt(signal.plan[name]));$('plan').append(el('p',signal.plan.supportReason+' · '+signal.plan.targetReason+' · действует '+signal.plan.validForSessions+' сессии · максимальное удержание '+signal.plan.maxHoldSessions+' сессий','muted'));}
+ $('plan').replaceChildren();if(signal.plan){for(const [label,name] of [['Условный вход','entry'],['Стоп по структуре','stop'],['Расчётная цель','target'],['RR до издержек','rr'],['Минимальная цель для 2:1','minimumTarget']])fact($('plan'),label,fmt(signal.plan[name]));$('plan').append(el('p',signal.plan.supportReason+' · '+signal.plan.targetReason+' · действует '+signal.plan.validForSessions+' сессии · максимальное удержание '+signal.plan.maxHoldSessions+' сессий','muted'));}
  $('signal-cancel').textContent='Отмена: '+signal.cancel.join('; ');$('limitations').textContent=signal.limitations.join(' · ');
  const h=v.history;
  if(h){

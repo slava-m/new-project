@@ -48,7 +48,7 @@ async function checkModel(){
 function schedule(symbol,closed){
  if(!closed.length)return;const last=closed.at(-1);
  if(analyzed.get(symbol)===last.time)return;
- analyzed.set(symbol,last.time);queue.set(symbol,{symbol,bars:closed.slice(-250),mode:state.symbols[symbol].barMode,received:state.symbols[symbol].lastUpdate});pump();
+ analyzed.set(symbol,last.time);queue.set(symbol,{symbol,bars:closed.slice(),mode:state.symbols[symbol].barMode,received:state.symbols[symbol].lastUpdate});pump();
 }
 async function pump(){
  if(busy||!modelReady||!queue.size)return;busy=true;
