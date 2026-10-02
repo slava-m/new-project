@@ -1,5 +1,8 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+["Ввести тикер","Enter ticker"],
+["Выбрать","Select"],
+["Тикер отсутствует в текущем списке S&P 500","Ticker is not in the current S&P 500 list"],
 ["Акция для всех модулей","Stock for all modules"],
 ["Выбрана акция: ","Selected stock: "],
 ["Выберите акцию наверху и интервал анализа. Здесь показан сохранённый отчёт; фильтры списка ниже относятся к дневной стратегии.","Choose the stock above and an analysis interval. The saved report appears here; the list filters below apply to the daily strategy."],
