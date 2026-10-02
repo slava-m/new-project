@@ -13,3 +13,16 @@
 .language-control{display:inline-flex;align-items:center;gap:8px;margin:0 16px 10px 0}.filter-controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:12px 0}.checkbox-label{display:flex;align-items:center;gap:8px}.filter-controls input[type=checkbox]{width:auto}select{background:#0d1624;color:#fff;border:1px solid #33435b;border-radius:6px;padding:8px}#scan-empty,#selection-filter-note{color:#e9b889}@media(max-width:600px){.language-control{display:flex}.filter-controls{align-items:flex-start;flex-direction:column}}
 
 #chat-log{max-height:420px;overflow:auto}.chat-message{white-space:pre-wrap;overflow-wrap:anywhere;padding:12px;border:1px solid #334155;border-radius:8px}.chat-message.user{background:#182435}#chat-message{width:100%;box-sizing:border-box;background:#111c2d;color:inherit;padding:12px;border:1px solid #475569;border-radius:8px}#chat-form button{padding:8px 12px;cursor:pointer}
+
+
+/* Keep stock navigation compact and accessible beside long reports. */
+main>aside{align-self:start;position:sticky;top:16px;max-height:calc(100dvh - 32px);overflow-y:auto;scrollbar-gutter:stable}
+main>aside>h2:first-child{margin-top:0}
+#sidebar-summary{margin:0 0 6px}
+.sidebar-help{margin:0 0 12px}
+#watch{max-height:clamp(180px,40dvh,420px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
+button.watch{padding:12px;margin:8px 0;gap:8px}
+button.watch.active{background:#203a42;box-shadow:inset 3px 0 #68cbb5}
+button.watch:focus-visible{outline:2px solid #68cbb5;outline-offset:2px}
+main>aside details{padding:10px 0;margin-bottom:0;border-top:1px solid #25344b}
+@media(max-width:850px){main>aside{position:static;max-height:none;overflow:visible}#watch{max-height:280px}}

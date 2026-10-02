@@ -36,6 +36,7 @@ function render(){
  const table=document.createElement('table');const head=document.createElement('tr');for(const name of ['Акция','Статус','Дата данных','Причина'])head.append(el('th',name));table.append(head);
  for(const [symbol,x] of Object.entries(s.symbols)){if(!matchesFilter(symbol,x,filters))continue;const tr=document.createElement('tr');tr.tabIndex=0;tr.className='scan-row';tr.onclick=()=>selectSymbol(symbol);tr.onkeydown=e=>{if(e.key==='Enter')selectSymbol(symbol);};tr.append(el('td',symbol),el('td',labels[x.signal.status]),el('td',day(x.bars.at(-1)?.time)),el('td',x.signal.reasons[0]||'—'));table.append(tr);}
  $('scan-table').replaceChildren(table);
+ $('sidebar-summary').textContent='Показано: '+Object.entries(s.symbols).filter(([symbol,x])=>matchesFilter(symbol,x,filters)).length;
  $('watch').replaceChildren();for(const [symbol,x] of Object.entries(s.symbols)){if(!matchesFilter(symbol,x,filters))continue;const button=el('button','','watch'+(selected===symbol?' active':''));const left=document.createElement('div');left.append(el('strong',symbol),el('div',labels[x.signal.status],'muted'));button.append(left,el('span',x.bars.length?fmt(x.bars.at(-1).close):'—'));button.onclick=()=>selectSymbol(symbol);$('watch').append(button);}
 
  const histories=Object.entries(s.symbols).filter(([symbol,x])=>x.history&&matchesFilter(symbol,x,filters));
