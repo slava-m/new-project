@@ -2,7 +2,7 @@ import {initChat} from '/chat.js';
 import {translateDOM,validLanguage} from '/i18n.js';
 import {matchesFilter,readPreferences,savePreferences} from '/filters.js';
 const preferences=readPreferences(localStorage);let language=preferences.language;
-const $=id=>document.getElementById(id);let state,selected,chartSource='tv',widgetSymbol='',chartKey='',fitted=false,widgetFailed=false;
+const $=id=>document.getElementById(id);let listRequested=false;let state,selected,chartSource='tv',widgetSymbol='',chartKey='',fitted=false,widgetFailed=false;
 const fmt=(v,n=2)=>Number.isFinite(v)?v.toLocaleString(language==='en'?'en-US':'ru-RU',{maximumFractionDigits:n}):'—';
 const day=t=>t?new Date(t*1000).toISOString().slice(0,10):'—';
 const date=t=>t?new Date(t).toLocaleString(language==='en'?'en-GB':'ru-RU',{timeZone:'Asia/Jerusalem'}):'—';
@@ -28,7 +28,8 @@ function render(){
  const counts={};for(const x of Object.values(s.symbols))counts[x.signal.status]=(counts[x.signal.status]||0)+1;
  const search=$('scan-search').value.trim().toUpperCase(),filters={search,status:$('scan-status').value,hideBelow:$('hide-below-sma').checked};
  const shown=Object.entries(s.symbols).filter(([symbol,row])=>matchesFilter(symbol,row,filters));
- $('scan-empty').hidden=shown.length>0;
+ const showList=Boolean(search)||listRequested;
+ $('show-all-stocks').textContent=showList?'Скрыть список':'Показать все акции';$('scan-table').hidden=!showList;$('scan-prompt').hidden=showList;$('scan-empty').hidden=!showList||shown.length>0;
  $('selection-filter-note').hidden=matchesFilter(selected,v,filters);
  $('archive-progress').textContent=s.archive?'Архив: '+s.archive.loaded+' / '+s.archive.total+' акций · осталось загрузить: '+s.archive.pending+' · историческая симуляция готова: '+s.archive.simulated+' · запросов приложения сегодня: '+s.archive.requestsToday+' / '+s.archive.dailyBudget+'. '+s.daily.message+' · Yahoo: '+s.archive.sources.yahoo.used+' запросов без ключа · Twelve Data: '+s.archive.sources.twelvedata.used+' запросов':'';
  $('analysis-schedule').textContent=s.analysisSchedule?'Повторный анализ каждые '+s.analysisSchedule.intervalMinutes+' минут · отчётов обновлено: '+s.analysisSchedule.reviewed+' / '+s.analysisSchedule.total+' · в очереди: '+s.analysisSchedule.pending+' · последний запуск: '+date(s.analysisSchedule.lastStarted)+' · следующий запуск: '+date(s.analysisSchedule.nextRun):'';
@@ -37,10 +38,13 @@ function render(){
  const table=document.createElement('table');const head=document.createElement('tr');for(const name of ['Акция','Статус','Дата данных','Причина'])head.append(el('th',name));table.append(head);
  for(const [symbol,x] of Object.entries(s.symbols)){if(!matchesFilter(symbol,x,filters))continue;const tr=document.createElement('tr');tr.tabIndex=0;tr.className='scan-row';tr.onclick=()=>selectSymbol(symbol);tr.onkeydown=e=>{if(e.key==='Enter')selectSymbol(symbol);};tr.append(el('td',symbol),el('td',labels[x.signal.status]),el('td',day(x.bars.at(-1)?.time)),el('td',x.signal.reasons[0]||'—'));table.append(tr);}
  $('scan-table').replaceChildren(table);
- $('sidebar-summary').textContent='Показано: '+Object.entries(s.symbols).filter(([symbol,x])=>matchesFilter(symbol,x,filters)).length;
- $('watch').replaceChildren();for(const [symbol,x] of Object.entries(s.symbols)){if(!matchesFilter(symbol,x,filters))continue;const button=el('button','','watch'+(selected===symbol?' active':''));const left=document.createElement('div');left.append(el('strong',symbol),el('div',labels[x.signal.status],'muted'));button.append(left,el('span',x.bars.length?fmt(x.bars.at(-1).close):'—'));button.onclick=()=>selectSymbol(symbol);$('watch').append(button);}
+ const navigation=showList?shown:[[selected,v]];
+ $('sidebar-summary').textContent=showList?'Показано: '+shown.length:'Выбранная акция';
+ $('watch').replaceChildren();for(const [symbol,x] of navigation){const button=el('button','','watch'+(selected===symbol?' active':''));const left=document.createElement('div');left.append(el('strong',symbol),el('div',labels[x.signal.status],'muted'));button.append(left,el('span',x.bars.length?fmt(x.bars.at(-1).close):'—'));button.onclick=()=>selectSymbol(symbol);$('watch').append(button);}
 
- const histories=Object.entries(s.symbols).filter(([symbol,x])=>x.history&&matchesFilter(symbol,x,filters));
+ const historySearch=$('history-search').value.trim().toUpperCase(),historyFilter=$('history-filter').value;
+ const histories=Object.entries(s.symbols).filter(([symbol,x])=>x.history&&symbol.includes(historySearch)&&(historyFilter==='all'||(historyFilter==='signals'?x.history.signals>0:x.history.metrics.closedTrades>0)));
+ $('history-empty').hidden=histories.length>0;
  const allTable=document.createElement('table'),historyHead=document.createElement('tr');
  for(const title of ['Акция','Свечи','Сигналы','Отмены входа','Сделки'])historyHead.append(el('th',title));allTable.append(historyHead);
  let totalSignals=0,totalTrades=0;
@@ -88,8 +92,11 @@ $('change-provider-key').onclick=()=>{const frame=$('settings-frame');frame.hidd
 $('ui-language').value=language;$('scan-status').value=preferences.status;$('hide-below-sma').checked=preferences.hideBelow;
 function storeUI(){savePreferences(localStorage,{language,status:$('scan-status').value,hideBelow:$('hide-below-sma').checked});}
 $('ui-language').onchange=e=>{language=validLanguage(e.target.value);document.documentElement.lang=language;storeUI();chart.applyOptions({localization:{locale:language==='en'?'en-US':'ru-RU'}});$('settings-frame').contentWindow?.postMessage({type:'ui-language',language},location.origin);if(state)render();else translateDOM(document.body,language);};
-$('scan-status').onchange=()=>{if($('scan-status').value==='belowSma150')$('hide-below-sma').checked=false;storeUI();render();};
-$('hide-below-sma').onchange=()=>{if($('hide-below-sma').checked&&$('scan-status').value==='belowSma150')$('scan-status').value='all';storeUI();render();};
+$('scan-status').onchange=()=>{listRequested=true;if($('scan-status').value==='belowSma150')$('hide-below-sma').checked=false;storeUI();render();};
+$('hide-below-sma').onchange=()=>{listRequested=true;if($('hide-below-sma').checked&&$('scan-status').value==='belowSma150')$('scan-status').value='all';storeUI();render();};
 document.documentElement.lang=language;translateDOM(document.body,language);
 
 initChat({getSymbol:()=>selected,getLanguage:()=>language});
+
+$('show-all-stocks').onclick=()=>{listRequested=!(Boolean($('scan-search').value.trim())||listRequested);$('scan-status').value='all';$('hide-below-sma').checked=false;$('scan-search').value='';storeUI();render();};
+$('history-filter').onchange=()=>render();$('history-search').oninput=()=>render();

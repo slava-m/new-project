@@ -1,5 +1,7 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+['Скрыть список','Hide list'],
+['Загрузка и расписание','Downloads and schedule'],['Показать все акции','Show all stocks'],['Введите тикер или выберите фильтр, чтобы показать акции.','Enter a ticker or choose a filter to show stocks.'],['Историческая проверка акций','Historical stock review'],['Исторические результаты','Historical results'],['С историческими сигналами','With historical signals'],['С завершёнными сделками','With closed trades'],['Все проверенные акции','All reviewed stocks'],['Поиск в истории','Search history'],['Исторических результатов по фильтру нет.','No historical results match the filter.'],['Выбранная акция','Selected stock'],
 ['Источники данных','Data sources'],['Yahoo Finance — источник без ключа. Twelve Data — резервный источник.','Yahoo Finance is a keyless source. Twelve Data is the fallback source.'],['Настроить резервный ключ','Configure fallback key'],['Резервный ключ Twelve Data уже сохранён. Повторный ввод не требуется.','The Twelve Data fallback key is already saved. No need to enter it again.'],['Резервный ключ Twelve Data не настроен. Yahoo работает без ключа.','No Twelve Data fallback key is configured. Yahoo works without a key.'],
 ['Локальный архив обновлён','Local archive is up to date'],
 ['Проверка источника выполняется сейчас','Source check is running now'],['Следующая проверка источника: ','Next source check: '],['следующий анализ: ','next analysis: '],['время Иерусалима','Jerusalem time'],

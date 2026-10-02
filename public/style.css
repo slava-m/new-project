@@ -26,3 +26,5 @@ button.watch.active{background:#203a42;box-shadow:inset 3px 0 #68cbb5}
 button.watch:focus-visible{outline:2px solid #68cbb5;outline-offset:2px}
 main>aside details{padding:10px 0;margin-bottom:0;border-top:1px solid #25344b}
 @media(max-width:850px){main>aside{position:static;max-height:none;overflow:visible}#watch{max-height:280px}}
+
+.scan-meta{padding:8px 0;margin:0 0 12px}.scan-summary summary{cursor:pointer}#history-browser{margin:16px 0 0;padding:12px 0 0;border-top:1px solid #25344b}#history-search{max-width:240px;background:#0d1624;color:inherit;border:1px solid #33435b;border-radius:8px;padding:8px}#show-all-stocks{padding:8px 12px;background:#17243a;color:inherit;border:1px solid #33435b;border-radius:8px;cursor:pointer}#scan-table,#universe-history{max-height:360px}
