@@ -1,5 +1,6 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+['Локальный архив обновлён','Local archive is up to date'],
 ['Проверка источника выполняется сейчас','Source check is running now'],['Следующая проверка источника: ','Next source check: '],['следующий анализ: ','next analysis: '],['время Иерусалима','Jerusalem time'],
 ['Акции по фильтру','Filtered stocks'],['Выберите акцию для подробного анализа. Справа — цена закрытия, USD.','Choose a stock for detailed analysis. The right column shows its closing price in USD.'],
 ['Повторный анализ каждые ','Repeat analysis every '],[' минут · отчётов обновлено: ',' minutes · reports refreshed: '],['в очереди: ','queued: '],['последний запуск: ','last run: '],['следующий запуск: ','next run: '],
@@ -112,3 +113,4 @@ const phraseCache=new Map();
 export function translateText(value,language='ru'){let text=String(value??'');if(validLanguage(language)!=='en')return text;const cached=phraseCache.get(text);if(cached!==undefined)return cached;const original=text;for(const [ru,en]of phrases)text=text.split(ru).join(en);if(phraseCache.size>4096)phraseCache.clear();phraseCache.set(original,text);return text;}
 const textCache=new WeakMap(),attrCache=new WeakMap();
 export function translateDOM(root,language){const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);for(let node;node=walker.nextNode();){if(node.parentElement?.closest('script,style,#ui-language,[data-no-i18n]'))continue;const old=textCache.get(node),original=old&&node.nodeValue===old.last?old.original:node.nodeValue,last=translateText(original,language);node.nodeValue=last;textCache.set(node,{original,last});}for(const node of root.querySelectorAll('[title],[placeholder],[aria-label]')){if(node.closest('[data-no-i18n]'))continue;let values=attrCache.get(node)||{};for(const attr of ['title','placeholder','aria-label'])if(node.hasAttribute(attr)){const current=node.getAttribute(attr),old=values[attr],original=old&&current===old.last?old.original:current,last=translateText(original,language);node.setAttribute(attr,last);values[attr]={original,last};}attrCache.set(node,values);}}
+
