@@ -2,7 +2,7 @@ import {initChat} from '/chat.js';
 import {translateDOM,validLanguage} from '/i18n.js';
 import {matchesFilter,readPreferences,savePreferences} from '/filters.js';
 const preferences=readPreferences(localStorage);let language=preferences.language;
-const $=id=>document.getElementById(id);let listRequested=false;let state,selected,chartSource='tv',widgetSymbol='',chartKey='',fitted=false,widgetFailed=false;
+const $=id=>document.getElementById(id);let listRequested=false;let state,selected,chartSource='tv',chartInterval='1day',widgetSymbol='',chartKey='',fitted=false,widgetFailed=false;
 const fmt=(v,n=2)=>Number.isFinite(v)?v.toLocaleString(language==='en'?'en-US':'ru-RU',{maximumFractionDigits:n}):'—';
 const day=t=>t?new Date(t*1000).toISOString().slice(0,10):'—';
 const date=t=>t?new Date(t).toLocaleString(language==='en'?'en-GB':'ru-RU',{timeZone:'Asia/Jerusalem'}):'—';
@@ -15,12 +15,13 @@ const volume=chart.addSeries(LightweightCharts.HistogramSeries,{priceFormat:{typ
 volume.priceScale().applyOptions({scaleMargins:{top:0.8,bottom:0}});candles.priceScale().applyOptions({scaleMargins:{top:0.08,bottom:0.25}});
 function selectSymbol(s){selected=s;fitted=false;chartKey='';openEvents(s);}
 function widget(){
- const symbol=(state.universe.members?.find(m=>m.symbol===selected)?.exchange||'NASDAQ')+':'+selected.replace('.', '-');const widgetKey=symbol+':'+language;if(widgetSymbol===widgetKey)return;widgetSymbol=widgetKey;widgetFailed=false;
+ const symbol=(state.universe.members?.find(m=>m.symbol===selected)?.exchange||'NASDAQ')+':'+selected.replace('.', '-');const widgetKey=symbol+':'+language+':'+chartInterval;if(widgetSymbol===widgetKey)return;widgetSymbol=widgetKey;widgetFailed=false;
  const host=$('tv-chart');host.replaceChildren();const target=document.createElement('div');target.className='tradingview-widget-container__widget';host.append(target);
  const iframe=document.createElement('iframe');iframe.title='Дневной график TradingView';iframe.style.cssText='width:100%;height:100%;border:0';
- iframe.src='https://www.tradingview-widget.com/embed-widget/advanced-chart/?locale='+language+'#'+encodeURIComponent(JSON.stringify({autosize:true,symbol,interval:'D',timezone:'Asia/Jerusalem',theme:'dark',style:'1',locale:language,allow_symbol_change:false,width:'100%',height:'100%',support_host:'https://www.tradingview.com'}));host.replaceChildren(iframe);
+ iframe.src='https://www.tradingview-widget.com/embed-widget/advanced-chart/?locale='+language+'#'+encodeURIComponent(JSON.stringify({autosize:true,symbol,interval:chartInterval==='1min'?'1':'D',timezone:'Asia/Jerusalem',theme:'dark',style:'1',locale:language,allow_symbol_change:false,width:'100%',height:'100%',support_host:'https://www.tradingview.com'}));host.replaceChildren(iframe);
 }
 $('chart-source').onchange=e=>{chartSource=e.target.value;render();};
+$('chart-interval').onchange=e=>{chartInterval=e.target.value;chartSource='local';$('chart-source').value='local';fitted=false;chartKey='';chart.applyOptions({timeScale:{timeVisible:chartInterval==='1min'}});openEvents(selected);render();};
 function render(){
  if(!state)return;const s=state;if(!s.symbols[selected])selected=Object.keys(s.symbols)[0];const v=s.symbols[selected],signal=v.signal;if(!v)return;
  $('source-status').textContent=s.archive?.sources?.twelvedata?.configured?'Резервный ключ Twelve Data уже сохранён. Повторный ввод не требуется.':'Резервный ключ Twelve Data не настроен. Yahoo работает без ключа.';
@@ -51,15 +52,20 @@ function render(){
  for(const [symbol,x] of histories){const h=x.history,row=document.createElement('tr');row.className='scan-row';row.tabIndex=0;row.onclick=()=>selectSymbol(symbol);row.onkeydown=e=>{if(e.key==='Enter')selectSymbol(symbol);};for(const value of [symbol,h.coverage.bars,h.signals,h.skipped+h.expired,h.metrics.closedTrades])row.append(el('td',String(value)));allTable.append(row);totalSignals+=h.signals;totalTrades+=h.metrics.closedTrades;}
  $('universe-history').replaceChildren(allTable);
  $('universe-history-summary').textContent='Проверено акций: '+histories.length+' из '+Object.keys(s.symbols).length+' · сигналов: '+totalSignals+' · завершённых сделок: '+totalTrades+'. Каждая акция моделируется отдельно; это не общий портфель. Нажмите строку для деталей.';
- $('symbol').textContent=selected+' / USD';$('feed').textContent=chartSource==='tv'?'TradingView · задержка определяется источником':'Дневные свечи · не live';
- $('tv-chart').hidden=chartSource!=='tv';$('chart').hidden=chartSource!=='local'||!v.bars.length;$('chart-empty').hidden=chartSource!=='local'||!!v.bars.length;
- $('source-note').textContent=widgetFailed?'TradingView не загрузился; проверьте интернет.':chartSource==='tv'?'Публичный график TradingView. Числовая история для агента: '+(v.dataProvider?v.barMode:'ожидается загрузка')+'.':'Источник: '+(v.barMode||'ожидается')+'. Последний незавершённый торговый день исключён.';
+ const minute=chartInterval==='1min',chartBars=minute?(s.minute?.bars||[]):v.bars;
+ $('minute-note').hidden=!minute;$('minute-timezone').hidden=!minute||chartSource!=='local';$('minute-status').hidden=!minute;
+ $('minute-status').textContent=s.intraday?'Минутный архив: '+s.intraday.loaded+' / '+s.intraday.total+' · очередь: '+s.intraday.pending+' · общий бюджет Yahoo: '+s.intraday.requestsToday+' / '+s.intraday.dailyBudget+' · следующая проверка: '+(s.intraday.running?'выполняется':date(s.intraday.nextCheckAt))+' · режим очереди: '+s.intraday.status:'';
+ $('symbol').textContent=selected+' / USD';$('feed').textContent=chartSource==='tv'?'TradingView · задержка определяется источником':(minute?'Минутные свечи · не гарантированный live':'Дневные свечи · не live');
+ $('tv-chart').hidden=chartSource!=='tv';$('chart').hidden=chartSource!=='local'||!chartBars.length;$('chart-empty').hidden=chartSource!=='local'||!!chartBars.length;
+ $('source-note').textContent=minute?'Источник минутного архива: Yahoo Finance · завершённые свечи регулярной сессии · выбранная акция проверяется не чаще раза в 5 минут, остальные — по очереди и бюджету.':widgetFailed?'TradingView не загрузился; проверьте интернет.':chartSource==='tv'?'Публичный график TradingView. Числовая история для агента: '+(v.dataProvider?v.barMode:'ожидается загрузка')+'.':'Источник: '+(v.barMode||'ожидается')+'. Последний незавершённый торговый день исключён.';
  if(chartSource==='tv')widget();
- $('empty-reason').textContent=s.daily.message;
- const last=v.bars.at(-1),key=selected+':'+v.bars.length+':'+JSON.stringify(last);
- if(chartKey!==key){candles.setData(v.bars.map(({time,open,high,low,close})=>({time,open,high,low,close})));volume.setData(v.bars.filter(b=>b.volume!==null).map(b=>({time:b.time,value:b.volume,color:b.close>=b.open?'#377f71':'#884d5c'})));if(v.bars.length&&!fitted){chart.timeScale().fitContent();fitted=true;}chartKey=key;}
- $('freshness').textContent='Данные для расчётов: '+v.barMode+' · '+v.bars.length+' свечей · последняя торговая дата: '+day(last?.time)+' · получены: '+date(v.lastUpdate)+(v.barStale?' · нет свежей истории':'');
- $('signal-status').textContent=labels[signal.status];$('signal-method').textContent=signal.method+' · дата расчёта по свечам: '+day(last?.time);
+ $('chart-empty').querySelector('h3').textContent=minute?'Минутная история ещё не получена':'Дневная история ещё не получена';
+ $('chart-source').querySelector('option[value=local]').textContent=minute?'Минутная история · локально':'Дневная история · локально';
+ $('empty-reason').textContent=minute?(s.minute?.error||'Ожидание минутного архива в пределах общего бюджета Yahoo.'):s.daily.message;
+ const last=chartBars.at(-1),key=selected+':'+chartInterval+':'+chartBars.length+':'+JSON.stringify(last);
+ if(chartKey!==key){candles.setData(chartBars.map(({time,open,high,low,close})=>({time,open,high,low,close})));volume.setData(chartBars.filter(b=>b.volume!==null).map(b=>({time:b.time,value:b.volume,color:b.close>=b.open?'#377f71':'#884d5c'})));if(chartBars.length&&!fitted){chart.timeScale().fitContent();fitted=true;}chartKey=key;}
+ $('freshness').textContent=minute?'Yahoo Finance · 1 min · '+chartBars.length+' свечей на графике · всего в архиве: '+(s.minute?.totalBars||0)+' · последняя завершённая свеча: '+date(s.minute?.lastBarAt)+' · получено: '+date(s.minute?.fetchedAt)+' · возраст свечи, минут: '+fmt(s.minute?.ageMinutes,1)+(s.minute?.error?' · '+s.minute.error:''):'Данные для расчётов: '+v.barMode+' · '+v.bars.length+' свечей · последняя торговая дата: '+day(v.bars.at(-1)?.time)+' · получены: '+date(v.lastUpdate)+(v.barStale?' · нет свежей истории':'');
+ $('signal-status').textContent=labels[signal.status];$('signal-method').textContent=signal.method+' · дата расчёта по свечам: '+day(v.bars.at(-1)?.time);
  $('signal-reasons').replaceChildren(...signal.reasons.map(r=>el('p',r,'muted')));
  $('supported-patterns').textContent='Поддерживаются '+signal.supportedPatterns.length+' моделей: '+signal.supportedPatterns.join(', ');
  $('pattern-warnings').replaceChildren(...signal.warnings.map(r=>el('p',r,'muted')));
@@ -84,7 +90,7 @@ function render(){
  $('diagnostics').textContent=s.daily.message+' · '+(s.daily.checking?'Проверка источника выполняется сейчас':'Следующая проверка источника: '+date(s.daily.nextCheckAt))+' · следующий анализ: '+date(s.analysisSchedule?.nextRun)+' · время Иерусалима · модель: '+s.agent.model;$('errors').replaceChildren(...s.errors.slice(0,3).map(e=>el('p',date(e.at)+' · '+e.message)));
  translateDOM(document.body,language);
 }
-let events;function openEvents(symbol){events?.close();events=new EventSource('/events'+(symbol?'?symbol='+encodeURIComponent(symbol):''));events.onmessage=e=>{state=JSON.parse(e.data);render();};events.onerror=()=>{$('connection').textContent='Нет связи с локальным сервером; экран может быть устаревшим';};}openEvents();$('scan-search').oninput=()=>render();
+let events;function openEvents(symbol){events?.close();events=new EventSource('/events'+(symbol?'?symbol='+encodeURIComponent(symbol)+'&interval='+chartInterval:''));events.onmessage=e=>{state=JSON.parse(e.data);render();};events.onerror=()=>{$('connection').textContent='Нет связи с локальным сервером; экран может быть устаревшим';};}openEvents();$('scan-search').oninput=()=>render();
 
 document.querySelectorAll('.setup-link').forEach(link=>link.onclick=e=>{e.preventDefault();const block=$('source-settings');block.open=true;block.scrollIntoView({behavior:'smooth',block:'start'});});
 

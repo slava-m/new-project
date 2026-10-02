@@ -73,3 +73,12 @@ Setup downloads dependencies and the pinned multilingual model once into ignored
 
 Verification: node --test; node verify-chat.mjs; node verify-preferences.mjs.
 The live speech test uses data/voice-test.wav, a locally generated synthetic English voice sample; it does not record the user's microphone.
+
+
+### Separate minute archive
+The optional config.intraday.enabled queue uses Yahoo Finance without a key. It initially requests five days of 1-minute regular-session candles, then updates the current session. This is an experimental public endpoint, not a guaranteed streaming data service. Unfinished candles, irregular quote timestamps, invalid OHLCV, and pre/post-market rows are excluded. SQLite minute_bars and minute_meta are separate from daily_history; progress survives restart, while the chart loads at most 2,000 minute bars.
+
+The minute and daily Yahoo loaders share the existing 750 requests/day application budget and 9-second minimum request spacing; these are conservative app limits, not claimed published Yahoo allowances. Daily refresh has priority. Selected minute charts may be checked at most every five minutes during regular hours; other tickers are considered for hourly updates in a fair queue, subject to budget. Initial backfill continues gradually, including while markets are closed. Existing histories are not repeatedly polled before opening or over weekends; holidays are not modelled by the weekday clock. The application does not promise minute-by-minute updates across the entire universe. Data gaps that fall outside the source's available recent window cannot be recovered automatically.
+
+Choosing “Minute candles” switches the local chart and shows source, completed-bar time, fetch time, candle age and queue state. The local chart time axis uses UTC; status timestamps use Jerusalem time. TradingView remains an independent visual source. Strategy signals, SMA150, agent status verification, and historical trading simulation remain daily; the chat can inspect separately labelled minute context. No intraday trading strategy or execution has been enabled.
+Verification: node --test; node verify-minute.mjs; node verify-preferences.mjs; node verify-compact.mjs.

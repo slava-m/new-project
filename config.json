@@ -39,5 +39,9 @@
   },
   "analysisTimeframe": "1day",
   "dailyHistoryBars": 520,
-  "analysisIntervalMs": 3600000
+  "analysisIntervalMs": 3600000,
+  "intraday": {
+    "enabled": true,
+    "refreshMs": 3600000
+  }
 }
