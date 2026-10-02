@@ -1,5 +1,6 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+['Повторный анализ каждые ','Repeat analysis every '],[' минут · отчётов обновлено: ',' minutes · reports refreshed: '],['в очереди: ','queued: '],['последний запуск: ','last run: '],['следующий запуск: ','next run: '],
 ['Язык / Language','Language'],['максимальное удержание: ','maximum holding period: '],['Настройка не завершена. Проверьте ключ и доступ к данным.','Setup incomplete. Check the key and data access.'],
 ['ИССЛЕДОВАНИЕ НОВЫХ ПОЗИЦИЙ · США','NEW POSITION RESEARCH · US'],
 ['Только покупки · дневные свечи · горизонт 2–3 дня — две недели · заявки не отправляются','Long only · daily candles · 2–3 days to two weeks · no orders are submitted'],

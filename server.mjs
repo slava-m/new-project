@@ -1,4 +1,5 @@
 import http from 'node:http';
+import {analysisSlot,completedSessionKey,hourlyInterval} from './hourly.mjs';
 import {Worker} from 'node:worker_threads';
 import {archiveDefaults,nextArchiveJob,consumeArchiveCredit,utcDay} from './archive.mjs';
 import fs from 'node:fs';
@@ -36,8 +37,10 @@ db.exec('CREATE TABLE IF NOT EXISTS archive_meta(symbol TEXT PRIMARY KEY,payload
 const archiveMeta=Object.fromEntries(db.prepare('SELECT symbol,payload FROM archive_meta').all().map(r=>[r.symbol,JSON.parse(r.payload)]));let archiveQuota=JSON.parse(db.prepare('SELECT payload FROM archive_quota WHERE id=1').get()?.payload||'{}');let yahooQuota=JSON.parse(db.prepare('SELECT payload FROM archive_quota WHERE id=2').get()?.payload||'{}');
 function saveMeta(symbol,value){archiveMeta[symbol]=value;db.prepare('INSERT INTO archive_meta VALUES(?,?) ON CONFLICT(symbol) DO UPDATE SET payload=excluded.payload').run(symbol,JSON.stringify(value));}
 function saveQuota(){db.prepare('INSERT INTO archive_quota VALUES(1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(JSON.stringify(archiveQuota));db.prepare('INSERT INTO archive_quota VALUES(2,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(JSON.stringify(yahooQuota));}
-for(const [symbol,v] of Object.entries(state.symbols)){v.dataProvider=archiveMeta[symbol]?.provider||(v.bars.length?'twelvedata':null);if(v.dataProvider)v.barMode=providerLabels[v.dataProvider];}
+for(const [symbol,v] of Object.entries(state.symbols)){v.dataProvider=archiveMeta[symbol]?.provider||(v.bars.length?'twelvedata':null);v.lastUpdate=archiveMeta[symbol]?.fetchedAt||null;if(v.dataProvider)v.barMode=providerLabels[v.dataProvider];}
 const queue=new Map();let busy=false,modelReady=false; const analyzed=new Map();
+const analysisInterval=config.analysisIntervalMs||hourlyInterval;let currentAnalysisSlot=-1,lastAnalysisStarted=null;const cycleReviewed=new Set();
+function startHourlyAnalysis(){const slot=analysisSlot(Date.now(),analysisInterval);if(slot===currentAnalysisSlot)return;currentAnalysisSlot=slot;lastAnalysisStarted=Date.now();cycleReviewed.clear();for(const symbol of config.symbols){const v=state.symbols[symbol];if(!v.bars.length)continue;const saved=db.prepare('SELECT body FROM analyses WHERE symbol=? ORDER BY id DESC LIMIT 1').get(symbol);let previous=null;try{previous=saved?JSON.parse(saved.body):null;}catch{}if(previous?.generated>=slot*analysisInterval&&previous.strategyVersion===config.research.version&&previous.barStart===v.bars.at(-1).time&&previous.received===v.lastUpdate){v.analysis=previous;cycleReviewed.add(symbol);continue;}schedule(symbol,v.bars);}broadcast();}
 const historyCache=new Map(),signalCache=new Map(),historyQueue=new Map();let historyBusy=null;
 const historyWorker=new Worker(new URL('./history-worker.mjs',import.meta.url));
 function revision(v){return v.lastUpdate+':'+v.bars.length+':'+v.bars.at(-1)?.time;}
@@ -47,7 +50,7 @@ function queueHistory(symbol){const v=state.symbols[symbol];if(!v.bars.length)re
 function pumpHistory(){if(historyBusy||!historyQueue.size||stopped)return;const [symbol,job]=historyQueue.entries().next().value;historyQueue.delete(symbol);historyBusy=job;historyWorker.postMessage(job);}
 historyWorker.on('message',job=>{historyBusy=null;const v=state.symbols[job.symbol];if(job.history&&job.revision===revision(v)){job.history.dataProvider=v.dataProvider;if(v.dataProvider==='yahoo')job.history.limitations.push('Yahoo Finance: метод корректировки корпоративных действий не подтверждён; источник экспериментальный');historyCache.set(job.symbol,{key:job.revision,value:job.history});if(!v.analysis)v.analysis={generated:Date.now(),barStart:v.bars.at(-1).time,text:buildReport({symbol:job.symbol,bars:v.bars,signal:signalFor(job.symbol,v),modelConfirmed:false})};}if(job.error)state.errors.unshift({at:Date.now(),message:job.error});broadcast();pumpHistory();});
 historyWorker.on('error',()=>{historyBusy=null;state.errors.unshift({at:Date.now(),message:'Фоновая историческая симуляция остановилась'});broadcast();});
-function snapshot(detailSymbol=config.symbols[0]){const rows=Object.fromEntries(Object.entries(state.symbols).map(([symbol,v])=>{const full=symbol===detailSymbol,signal=signalFor(symbol,v),h=historyFor(symbol,v);return [symbol,{...v,belowSma150:signal.facts&&Number.isFinite(signal.facts.close)&&Number.isFinite(signal.facts.sma150)?signal.facts.close<signal.facts.sma150:null,bars:full?v.bars.slice(-1000):v.bars.slice(-1),barCount:v.bars.length,analysis:full?v.analysis:null,history:h?(full?h:{coverage:h.coverage,signals:h.signals,skipped:h.skipped,expired:h.expired,metrics:h.metrics}):null,signal:full?signal:{status:signal.status,reasons:signal.reasons.slice(0,1)},quoteStale:!v.quoteAt||Date.now()-v.quoteAt>90000,barStale:!v.bars.length||Date.now()/1000-v.bars.at(-1).time>(dailyMode?8*86400:180)}];}));const loaded=Object.values(state.symbols).filter(v=>v.bars.length).length;return {...state,universe,strategy:config.research,positions:state.positions.map(({key,...p})=>p),now:Date.now(),archive:{total:config.symbols.length,loaded,pending:config.symbols.length-loaded,simulated:historyCache.size,requestsToday:(archiveQuota.day===utcDay(Date.now())?archiveQuota.used||0:0)+(yahooQuota.day===utcDay(Date.now())?yahooQuota.used||0:0),dailyBudget:archiveDefaults.dailyBudget*(providerKey?2:1),sources:{yahoo:{used:yahooQuota.day===utcDay(Date.now())?yahooQuota.used||0:0,budget:archiveDefaults.dailyBudget,pauseUntil:yahooQuota.pauseUntil||0,keyRequired:false},twelvedata:{used:archiveQuota.day===utcDay(Date.now())?archiveQuota.used||0:0,budget:archiveDefaults.dailyBudget,configured:!!providerKey,pauseUntil:archiveQuota.pauseUntil||0,keyRequired:true}},nextRequest:yahooQuota.nextAt||archiveQuota.nextAt||null,pauseUntil:yahooQuota.pauseUntil||archiveQuota.pauseUntil||null,historyQueue:historyQueue.size+Number(!!historyBusy),modelQueue:queue.size+Number(busy)},symbols:rows};}
+function snapshot(detailSymbol=config.symbols[0]){const rows=Object.fromEntries(Object.entries(state.symbols).map(([symbol,v])=>{const full=symbol===detailSymbol,signal=signalFor(symbol,v),h=historyFor(symbol,v);return [symbol,{...v,belowSma150:signal.facts&&Number.isFinite(signal.facts.close)&&Number.isFinite(signal.facts.sma150)?signal.facts.close<signal.facts.sma150:null,bars:full?v.bars.slice(-1000):v.bars.slice(-1),barCount:v.bars.length,analysis:full?v.analysis:null,history:h?(full?h:{coverage:h.coverage,signals:h.signals,skipped:h.skipped,expired:h.expired,metrics:h.metrics}):null,signal:full?signal:{status:signal.status,reasons:signal.reasons.slice(0,1)},quoteStale:!v.quoteAt||Date.now()-v.quoteAt>90000,barStale:!v.bars.length||Date.now()/1000-v.bars.at(-1).time>(dailyMode?8*86400:180)}];}));const loaded=Object.values(state.symbols).filter(v=>v.bars.length).length;return {...state,universe,strategy:config.research,positions:state.positions.map(({key,...p})=>p),now:Date.now(),analysisSchedule:{intervalMinutes:analysisInterval/60000,lastStarted:lastAnalysisStarted,nextRun:(currentAnalysisSlot+1)*analysisInterval,reviewed:cycleReviewed.size,pending:queue.size+Number(busy),total:config.symbols.length},archive:{total:config.symbols.length,loaded,pending:config.symbols.length-loaded,simulated:historyCache.size,requestsToday:(archiveQuota.day===utcDay(Date.now())?archiveQuota.used||0:0)+(yahooQuota.day===utcDay(Date.now())?yahooQuota.used||0:0),dailyBudget:archiveDefaults.dailyBudget*(providerKey?2:1),sources:{yahoo:{used:yahooQuota.day===utcDay(Date.now())?yahooQuota.used||0:0,budget:archiveDefaults.dailyBudget,pauseUntil:yahooQuota.pauseUntil||0,keyRequired:false},twelvedata:{used:archiveQuota.day===utcDay(Date.now())?archiveQuota.used||0:0,budget:archiveDefaults.dailyBudget,configured:!!providerKey,pauseUntil:archiveQuota.pauseUntil||0,keyRequired:true}},nextRequest:yahooQuota.nextAt||archiveQuota.nextAt||null,pauseUntil:yahooQuota.pauseUntil||archiveQuota.pauseUntil||null,historyQueue:historyQueue.size+Number(!!historyBusy),modelQueue:queue.size+Number(busy)},symbols:rows};}
 function broadcast(){for(const client of clients)client.res.write('data: '+JSON.stringify(snapshot(client.symbol))+'\n\n');}
 function error(message,code,id){state.errors.unshift({at:Date.now(),message:String(message),code,id});state.errors=state.errors.slice(0,12);broadcast();}
 async function checkModel(){
@@ -60,14 +63,14 @@ async function checkModel(){
 }
 function schedule(symbol,closed){
  if(!closed.length)return;const last=closed.at(-1);
- if(analyzed.get(symbol)===last.time)return;
- analyzed.set(symbol,last.time);queue.set(symbol,{symbol,bars:closed.slice(),mode:state.symbols[symbol].barMode,received:state.symbols[symbol].lastUpdate});pump();
+ const slot=analysisSlot(Date.now(),analysisInterval),key=last.time+':'+slot+':'+state.symbols[symbol].lastUpdate;if(analyzed.get(symbol)===key)return;cycleReviewed.delete(symbol);
+ analyzed.set(symbol,key);queue.set(symbol,{slot,symbol,bars:closed.slice(),mode:state.symbols[symbol].barMode,received:state.symbols[symbol].lastUpdate});pump();
 }
 async function pump(){
  if(busy||!modelReady||!queue.size)return;busy=true;
  const [symbol,job]=queue.entries().next().value;queue.delete(symbol);
  const facts=indicators(job.bars,{timeframe:dailyMode?'1day':'1min'}),last=job.bars.at(-1);
- const signal=evaluateSetup(job.bars,{...config.research,now:Date.now()/1000,connected:state.symbols[symbol].dataStatus==='ready'});
+ const signal=evaluateSetup(job.bars,{...config.research,now:Date.now()/1000,connected:dailyMode?!!state.symbols[symbol].bars.length:state.connection==='connected'});
  state.agent={...state.agent,status:'analyzing',message:'Проверка рассчитанного статуса '+symbol};broadcast();
  let modelConfirmed=false;
  try{
@@ -76,9 +79,10 @@ async function pump(){
  if(res.ok){const data=await res.json();modelConfirmed=validateAssessment(data.response,signal);}
  }catch{}
  try{
+ if(job.received!==state.symbols[symbol].lastUpdate){schedule(symbol,state.symbols[symbol].bars);return;}
  const result={symbol,strategyVersion:config.research.version,timeframe:dailyMode?'1day':'1min',barStart:last.time,barEnd:last.time+(dailyMode?86400:60),generated:Date.now(),received:job.received,mode:job.mode,facts,modelConfirmed,text:buildReport({symbol,bars:job.bars,signal,modelConfirmed})};
  db.prepare('INSERT INTO analyses(symbol,time,generated,body) VALUES(?,?,?,?)').run(symbol,last.time,result.generated,JSON.stringify(result));
- state.symbols[symbol].analysis=result;state.agent={...state.agent,status:'ready',message:'Проверяемый отчёт '+symbol+' готов'};
+ state.symbols[symbol].analysis=result;if(job.slot===currentAnalysisSlot)cycleReviewed.add(symbol);state.agent={...state.agent,status:'ready',message:'Проверяемый отчёт '+symbol+' готов'};
  }catch{analyzed.delete(symbol);state.agent={...state.agent,status:'error',message:'Не удалось сохранить отчёт'};}
  finally{busy=false;broadcast();pump();}
 }
@@ -155,19 +159,20 @@ if(req.method!=='GET'){res.writeHead(405);return res.end();}
  res.setHeader('Content-Type',route[1]);fs.createReadStream(path.join(root,route[0])).on('error',()=>res.destroy()).pipe(res);
 });
 const beat=setInterval(broadcast,15000);const modelCheck=setInterval(checkModel,30000);
-server.listen(config.port,'127.0.0.1',()=>{console.log('Local panel: http://127.0.0.1:'+config.port);if(config.ibkr.enabled!==false)connect();if(dailyMode){for(const symbol of config.symbols)queueHistory(symbol);refreshDaily();}checkModel();});
+server.listen(config.port,'127.0.0.1',()=>{console.log('Local panel: http://127.0.0.1:'+config.port);if(config.ibkr.enabled!==false)connect();if(dailyMode){for(const symbol of config.symbols)queueHistory(symbol);startHourlyAnalysis();refreshDaily();}checkModel();});
 async function refreshDaily(){if(dailyRunning||stopped)return;dailyRunning=true;
- try{const now=Date.now(),yJob=nextArchiveJob(config.symbols,archiveMeta,yahooQuota,now),tJob=providerKey?nextArchiveJob(config.symbols,archiveMeta,archiveQuota,now):null;const job=yJob.symbol?yJob:tJob?.symbol?tJob:yJob;
+ try{const now=Date.now(),yJob=nextArchiveJob(config.symbols,archiveMeta,yahooQuota,now,{sessionKey:completedSessionKey(now)}),tJob=providerKey?nextArchiveJob(config.symbols,archiveMeta,archiveQuota,now,{sessionKey:completedSessionKey(now)}):null;const job=yJob.symbol?yJob:tJob?.symbol?tJob:yJob;
  if(!job.symbol){state.daily={status:job.reason==='up-to-date'?'ready':job.reason==='minute-budget'?'loading':'paused',message:job.reason==='up-to-date'?'Локальный архив обновлён; следующая проверка по расписанию':job.reason==='minute-budget'?'Постепенная загрузка: ожидание следующего запроса':'Бесплатные источники временно ограничили запросы; очередь сохранена'};return;}
  const symbol=job.symbol;state.daily={status:'loading',message:'Загружается двухлетняя дневная история '+symbol};broadcast();
  try{const result=await fetchFreeDaily(symbol,{providerKey,outputsize:config.dailyHistoryBars||520,
- allowed:source=>nextArchiveJob(config.symbols,archiveMeta,source==='yahoo'?yahooQuota:archiveQuota,Date.now()).symbol===symbol,
+ allowed:source=>nextArchiveJob(config.symbols,archiveMeta,source==='yahoo'?yahooQuota:archiveQuota,Date.now(),{sessionKey:completedSessionKey(Date.now())}).symbol===symbol,
  consume:source=>{if(source==='yahoo')yahooQuota=consumeArchiveCredit(yahooQuota,Date.now());else archiveQuota=consumeArchiveCredit(archiveQuota,Date.now());saveQuota();},
  onFailure:(source,message)=>{if(/403|429|credits|limit|quota/i.test(message)){const q=source==='yahoo'?yahooQuota:archiveQuota;q.pauseUntil=/403|daily|day|800/i.test(message)?Date.parse(utcDay(Date.now())+'T00:00:00Z')+86400000:Date.now()+15*60000;saveQuota();}}});
- const {bars,source,label}=result,v=state.symbols[symbol];v.bars=bars;v.dataProvider=source;v.dataStatus='ready';v.barMode=label;v.lastUpdate=Date.now();v.quote=null;v.quoteAt=null;db.prepare('INSERT INTO daily_history VALUES(?,?) ON CONFLICT(symbol) DO UPDATE SET payload=excluded.payload').run(symbol,JSON.stringify(bars));saveMeta(symbol,{fetchedAt:Date.now(),retryAt:0,status:'ready',provider:source});queueHistory(symbol);schedule(symbol,bars);state.daily.message='История '+symbol+' сохранена из '+(source==='yahoo'?'Yahoo Finance':'Twelve Data')+'; очередь продолжается';
+ const {bars,source,label}=result,v=state.symbols[symbol];v.bars=bars;v.dataProvider=source;v.dataStatus='ready';v.barMode=label;v.lastUpdate=Date.now();v.quote=null;v.quoteAt=null;db.prepare('INSERT INTO daily_history VALUES(?,?) ON CONFLICT(symbol) DO UPDATE SET payload=excluded.payload').run(symbol,JSON.stringify(bars));saveMeta(symbol,{fetchedAt:Date.now(),retryAt:0,status:'ready',provider:source,checkedSessionKey:completedSessionKey(Date.now())});queueHistory(symbol);schedule(symbol,bars);state.daily.message='История '+symbol+' сохранена из '+(source==='yahoo'?'Yahoo Finance':'Twelve Data')+'; очередь продолжается';
  }catch(e){const message=String(e.message).split(providerKey||'__NO_KEY__').join('[redacted]');const globalLimit=(e.failures||[]).some(f=>/403|429|credits|limit|quota/i.test(f.message));if(!globalLimit)saveMeta(symbol,{...archiveMeta[symbol],retryAt:Date.now()+archiveDefaults.errorRetryMs,status:'error'});state.symbols[symbol].dataStatus=state.symbols[symbol].bars.length?'cached':'error';state.daily={status:globalLimit?'paused':'loading',message:globalLimit?'Источники ограничили запросы; очередь продолжится автоматически':'Не удалось получить '+symbol+'; очередь продолжает другие акции'};error(message);}
  }finally{dailyRunning=false;broadcast();}
 }
+const analysisTimer=setInterval(()=>{if(dailyMode)startHourlyAnalysis();},10000);
 const dailyTimer=setInterval(()=>{if(dailyMode)refreshDaily();},1000);
-function shutdown(){clearInterval(dailyTimer);stopped=true;clearInterval(beat);clearInterval(modelCheck);clearTimeout(retryTimer);clearTimeout(connectTimer);ib?.disconnect();historyWorker.terminate();for(const client of clients)client.res.end();server.close(()=>{db.close();process.exit(0);});}
+function shutdown(){clearInterval(analysisTimer);clearInterval(dailyTimer);stopped=true;clearInterval(beat);clearInterval(modelCheck);clearTimeout(retryTimer);clearTimeout(connectTimer);ib?.disconnect();historyWorker.terminate();for(const client of clients)client.res.end();server.close(()=>{db.close();process.exit(0);});}
 process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown);

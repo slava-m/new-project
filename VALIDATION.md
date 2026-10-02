@@ -33,3 +33,6 @@ Qwen2.5 14B Q4_K_M downloaded, SHA verification succeeded. Ollama /api/ps report
 
 ## Bilingual dashboard and status filters
 61 unit tests passed. Real-universe browser checks verified all seven filter modes, independent numerical SMA150 exclusion, search compatibility, matching sidebar counts, English/Russian switching, TradingView locale, embedded settings translation, preference persistence after reload, mobile width and absence of JS errors. English text contained no unexpected Cyrillic on the checked report. Translation preserves numerical levels and ticker symbols; calculations and model inputs are unchanged. Full-universe browser regression also passed.
+
+## Hourly analysis and completed-session refresh
+65 unit tests passed, covering hourly slot boundaries, New York day transition, weekends, no repeated hourly downloads, persisted session markers and migration from legacy 24-hour metadata. Live run queued 503 model reviews; progress increased and fresh AAPL candles through Oct 1 became available. Stale in-flight jobs cannot overwrite reports after data refresh. Source quotas remain independent and persisted.

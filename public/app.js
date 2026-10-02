@@ -29,6 +29,7 @@ function render(){
  $('scan-empty').hidden=shown.length>0;
  $('selection-filter-note').hidden=matchesFilter(selected,v,filters);
  $('archive-progress').textContent=s.archive?'Архив: '+s.archive.loaded+' / '+s.archive.total+' акций · осталось загрузить: '+s.archive.pending+' · историческая симуляция готова: '+s.archive.simulated+' · запросов приложения сегодня: '+s.archive.requestsToday+' / '+s.archive.dailyBudget+'. '+s.daily.message+' · Yahoo: '+s.archive.sources.yahoo.used+' запросов без ключа · Twelve Data: '+s.archive.sources.twelvedata.used+' запросов':'';
+ $('analysis-schedule').textContent=s.analysisSchedule?'Повторный анализ каждые '+s.analysisSchedule.intervalMinutes+' минут · отчётов обновлено: '+s.analysisSchedule.reviewed+' / '+s.analysisSchedule.total+' · в очереди: '+s.analysisSchedule.pending+' · последний запуск: '+date(s.analysisSchedule.lastStarted)+' · следующий запуск: '+date(s.analysisSchedule.nextRun):'';
  $('scan-summary').textContent='Проверяется '+Object.keys(s.symbols).length+' акций · кандидатов: '+(counts.candidate||0)+' · наблюдать: '+(counts.waiting||0)+' · исключено: '+(counts.excluded||0)+' · без данных: '+(counts.insufficient||0)+' · Показано: '+shown.length+' из '+Object.keys(s.symbols).length;
  $('universe-note').textContent=s.universe.name+'. '+s.universe.note;
  const table=document.createElement('table');const head=document.createElement('tr');for(const name of ['Акция','Статус','Дата данных','Причина'])head.append(el('th',name));table.append(head);

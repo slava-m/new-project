@@ -38,5 +38,6 @@
     "version": "sma150-structures-v2"
   },
   "analysisTimeframe": "1day",
-  "dailyHistoryBars": 520
+  "dailyHistoryBars": 520,
+  "analysisIntervalMs": 3600000
 }
