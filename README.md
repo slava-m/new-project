@@ -104,3 +104,6 @@ The simulation panel now has daily/hourly interval selection and its own Run sim
 The local chat and voice interface is currently disabled at the user request. Its dashboard initialization and server chat/speech endpoints are removed; existing local history and implementation files are retained for later restoration. Scanner model review remains enabled.
 
 A global stock selector above manual analysis lists all universe tickers with company names and controls charts, reports and simulations independently of list filters. The selected ticker is remembered locally across reload. Selection from legacy table rows also updates the global selector.
+
+### Parallel application agent roles
+The loader role has independent daily/hourly/minute timers and persisted source quotas; it does not depend on model readiness or model-queue completion. The analyst role uses a separate Ollama report queue and a worker-thread historical simulation queue over cached bars. Network loading can overlap model generation and worker computation; these are application tasks, not two copies of a language model. Diagnostics exposes both roles with separate queues and next scheduled checks. A source budget pause does not stop analysis of existing data.

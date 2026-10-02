@@ -1,5 +1,15 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+["Агент загрузки","Data loading agent"],
+["Агент анализа","Analysis agent"],
+["Загрузка и анализ работают независимо. Анализ использует сохранённые свечи и не ждёт завершения всей загрузки.","Loading and analysis run independently. Analysis uses cached candles without waiting for the full download."],
+["Дневные данные: ","Daily data: "],
+[" · часовые: "," · hourly: "],
+[" · минутные: "," · minute: "],
+[" · следующий часовой запрос: "," · next hourly request: "],
+[" · очередь модели: "," · model queue: "],
+[" · очередь симуляции: "," · simulation queue: "],
+[" · следующий автоматический анализ: "," · next automatic analysis: "],
 ["Ввести тикер","Enter ticker"],
 ["Выбрать","Select"],
 ["Тикер отсутствует в текущем списке S&P 500","Ticker is not in the current S&P 500 list"],

@@ -92,6 +92,7 @@ function render(){
  $('agent-status').textContent=s.agent.status==='ready'&&!v.bars.length?'Модель готова · ожидает историю':s.agent.message;
  $('analysis').textContent=v.analysis?.text||'Агент объяснит результаты после загрузки дневной истории. Сейчас расчётные уровни не подставляются.';
  $('analysis-time').textContent=v.analysis?'Анализ сформирован: '+date(v.analysis.generated)+' · исходная торговая дата: '+day(v.analysis.barStart):'';
+ $('loader-agent').textContent='Дневные данные: '+s.daily.message+' · часовые: '+(s.hourlyArchive?.loaded||0)+' / '+Object.keys(s.symbols).length+' · минутные: '+(s.intraday?.loaded||0)+' / '+Object.keys(s.symbols).length+' · следующий часовой запрос: '+date(s.hourlyArchive?.nextCheckAt);$('analyst-agent').textContent=s.agent.message+' · очередь модели: '+(s.analysisSchedule?.pending||0)+' · очередь симуляции: '+(s.intervalHistoryQueue||0)+' · следующий автоматический анализ: '+date(s.analysisSchedule?.nextRun);
  $('diagnostics').textContent=s.daily.message+' · '+(s.daily.checking?'Проверка источника выполняется сейчас':'Следующая проверка источника: '+date(s.daily.nextCheckAt))+' · следующий анализ: '+date(s.analysisSchedule?.nextRun)+' · время Иерусалима · модель: '+s.agent.model;$('errors').replaceChildren(...s.errors.slice(0,3).map(e=>el('p',date(e.at)+' · '+e.message)));
  translateDOM(document.body,language);
 }
