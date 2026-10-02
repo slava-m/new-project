@@ -21,16 +21,16 @@ export function structures(bars,atr){
 }
 
 export function evaluateStrategy(bars,options={}){
- const o={...strategyDefaults,...options};o.minRR=Math.max(2,o.minRR);const last=bars.at(-1);let result={method:o.name,version:o.version,status:'insufficient',side:'long',barEnd:last?last.time+86400:null,reasons:[],patterns:[],supportedPatterns:patternCatalogue,warnings:[],plan:null,cancel:['Дневное закрытие ниже SMA150','Пробой выбранной структурной опоры до входа','План не активировался за 3 торговые сессии','Данные устарели'],limitations:['Дневные свечи, не подтверждение цены прямо сейчас','Новости и отчётность ещё не подключены','Параметры структур — экспериментальные; прибыльность не подтверждена']};
+ const o={...strategyDefaults,...options};o.minRR=Math.max(2,o.minRR);const last=bars.at(-1),barSeconds=o.barSeconds||86400;let result={method:o.name,version:o.version,status:'insufficient',side:'long',barEnd:last?last.time+barSeconds:null,reasons:[],patterns:[],supportedPatterns:patternCatalogue,warnings:[],plan:null,cancel:['Дневное закрытие ниже SMA150','Пробой выбранной структурной опоры до входа','План не активировался за 3 торговые сессии','Данные устарели'],limitations:['Дневные свечи, не подтверждение цены прямо сейчас','Новости и отчётность ещё не подключены','Параметры структур — экспериментальные; прибыльность не подтверждена']};
  if(bars.length<150||bars.some(b=>!validBar(b))){result.reasons=['Нужно минимум 150 корректных завершённых дневных свечей'];return result;}
  if(bars.slice(-150).some((b,i,a)=>i&&(b.time<=a[i-1].time||b.time-a[i-1].time>7*86400))){result.reasons=['В истории есть существенные пропуски или неверный порядок'];return result;}
  const ma={sma20:sma(bars,20),sma50:sma(bars,50),sma150:sma(bars,150)},atr=atr14(bars);
  result.facts={...ma,atr14:atr,close:last.close};
  // Hard exclusion applies before pattern detection or model explanation.
  if(last.close<ma.sma150)return {...result,status:'excluded',reasons:['Закрытие ниже SMA150: акция исключена'],patterns:[]};
- if(o.now!==undefined&&(!o.connected||o.now-(last.time+86400)>o.maxAgeDays*86400||last.time+86400>o.now))return {...result,reasons:['Нет свежих завершённых дневных данных']};
+ if(o.now!==undefined&&(!o.connected||o.now-(last.time+barSeconds)>o.maxAgeDays*86400||last.time+barSeconds>o.now))return {...result,reasons:['Нет свежих завершённых дневных данных']};
  if(!atr||atr<=0)return {...result,reasons:['Недостаточно данных волатильности']};
- const turnover=bars.slice(-20).every(b=>b.volume!==null&&Number.isFinite(b.volume))?bars.slice(-20).reduce((s,b)=>s+b.volume*b.close,0)/20:null;
+ const turnover=Number.isFinite(o.dailyTurnover)?o.dailyTurnover:bars.slice(-20).every(b=>b.volume!==null&&Number.isFinite(b.volume))?bars.slice(-20).reduce((s,b)=>s+b.volume*b.close,0)/20:null;
  const prev=bars.at(-2),prior=bars.slice(0,-1);
  const near=[20,50,150].filter(period=>{const current=ma['sma'+period],previous=sma(prior,period);return previous!==null&&prev.close>=previous&&(Math.abs(last.close-current)<=o.nearAtr*atr||last.low<=current&&last.high>=current);});
  const patterns=structures(bars,atr);
