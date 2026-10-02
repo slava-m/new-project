@@ -1,5 +1,7 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+["Результаты анализа выбранной акции","Analysis results for the selected stock"],
+["Выберите тикер через поиск и интервал анализа. Здесь показан сохранённый отчёт; фильтры списка ниже относятся к дневной стратегии.","Choose a ticker using search and an analysis interval. The saved report appears here; the list filters below apply to the daily strategy."],
 ["Часовой технический анализ","Hourly technical analysis"],
 ["Минутный технический анализ","Minute technical analysis"],
 ["Последняя свеча: ","Last candle: "],
