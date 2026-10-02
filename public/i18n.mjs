@@ -1,5 +1,6 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+['Проверка источника выполняется сейчас','Source check is running now'],['Следующая проверка источника: ','Next source check: '],['следующий анализ: ','next analysis: '],['время Иерусалима','Jerusalem time'],
 ['Акции по фильтру','Filtered stocks'],['Выберите акцию для подробного анализа. Справа — цена закрытия, USD.','Choose a stock for detailed analysis. The right column shows its closing price in USD.'],
 ['Повторный анализ каждые ','Repeat analysis every '],[' минут · отчётов обновлено: ',' minutes · reports refreshed: '],['в очереди: ','queued: '],['последний запуск: ','last run: '],['следующий запуск: ','next run: '],
 ['Язык / Language','Language'],['максимальное удержание: ','maximum holding period: '],['Настройка не завершена. Проверьте ключ и доступ к данным.','Setup incomplete. Check the key and data access.'],

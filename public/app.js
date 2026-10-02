@@ -5,7 +5,7 @@ const preferences=readPreferences(localStorage);let language=preferences.languag
 const $=id=>document.getElementById(id);let state,selected,chartSource='tv',widgetSymbol='',chartKey='',fitted=false,widgetFailed=false;
 const fmt=(v,n=2)=>Number.isFinite(v)?v.toLocaleString(language==='en'?'en-US':'ru-RU',{maximumFractionDigits:n}):'—';
 const day=t=>t?new Date(t*1000).toISOString().slice(0,10):'—';
-const date=t=>t?new Date(t).toLocaleString('ru-RU',{timeZone:'Asia/Jerusalem'}):'—';
+const date=t=>t?new Date(t).toLocaleString(language==='en'?'en-GB':'ru-RU',{timeZone:'Asia/Jerusalem'}):'—';
 const labels={candidate:'Условный кандидат',waiting:'Наблюдать',excluded:'Исключён',insufficient:'Недостаточно данных'};
 function el(tag,value,cls){const node=document.createElement(tag);node.textContent=value;if(cls)node.className=cls;return node;}
 function fact(host,name,value){const box=el('div',name,'fact');box.append(el('b',value));host.append(box);}
@@ -76,7 +76,7 @@ function render(){
  $('agent-status').textContent=s.agent.status==='ready'&&!v.bars.length?'Модель готова · ожидает историю':s.agent.message;
  $('analysis').textContent=v.analysis?.text||'Агент объяснит результаты после загрузки дневной истории. Сейчас расчётные уровни не подставляются.';
  $('analysis-time').textContent=v.analysis?'Анализ сформирован: '+date(v.analysis.generated)+' · исходная торговая дата: '+day(v.analysis.barStart):'';
- $('diagnostics').textContent=s.daily.message+' · модель: '+s.agent.model;$('errors').replaceChildren(...s.errors.slice(0,3).map(e=>el('p',date(e.at)+' · '+e.message)));
+ $('diagnostics').textContent=s.daily.message+' · '+(s.daily.checking?'Проверка источника выполняется сейчас':'Следующая проверка источника: '+date(s.daily.nextCheckAt))+' · следующий анализ: '+date(s.analysisSchedule?.nextRun)+' · время Иерусалима · модель: '+s.agent.model;$('errors').replaceChildren(...s.errors.slice(0,3).map(e=>el('p',date(e.at)+' · '+e.message)));
  translateDOM(document.body,language);
 }
 let events;function openEvents(symbol){events?.close();events=new EventSource('/events'+(symbol?'?symbol='+encodeURIComponent(symbol):''));events.onmessage=e=>{state=JSON.parse(e.data);render();};events.onerror=()=>{$('connection').textContent='Нет связи с локальным сервером; экран может быть устаревшим';};}openEvents();$('scan-search').oninput=()=>render();
