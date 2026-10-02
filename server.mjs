@@ -1,3 +1,7 @@
+import {installSpeech} from './speech.mjs';
+import {createModelQueue} from './model-queue.mjs';
+import {installChat} from './chat.mjs';
+const modelQueue=createModelQueue();
 import http from 'node:http';
 import {analysisSlot,completedSessionKey,hourlyInterval} from './hourly.mjs';
 import {Worker} from 'node:worker_threads';
@@ -74,8 +78,8 @@ async function pump(){
  state.agent={...state.agent,status:'analyzing',message:'Проверка рассчитанного статуса '+symbol};broadcast();
  let modelConfirmed=false;
  try{
- const res=await fetch(new URL('/api/generate',ollamaUrl),{method:'POST',headers:{'Content-Type':'application/json'},redirect:'error',signal:AbortSignal.timeout(120000),
- body:JSON.stringify({model:config.ollama.model,stream:false,format:{type:'object',properties:{status:{type:'string',enum:['candidate','waiting','excluded','insufficient']}},required:['status'],additionalProperties:false},keep_alive:'10m',options:{temperature:0,num_predict:80,...config.ollama.options},prompt:'Верни только JSON с единственным полем status, точно равным вычисленному research.status. Не добавляй текст, числа и другие поля. '+JSON.stringify({symbol,research:signal})})});
+ const res=await modelQueue(()=>fetch(new URL('/api/generate',ollamaUrl),{method:'POST',headers:{'Content-Type':'application/json'},redirect:'error',signal:AbortSignal.timeout(120000),
+ body:JSON.stringify({model:config.ollama.model,stream:false,format:{type:'object',properties:{status:{type:'string',enum:['candidate','waiting','excluded','insufficient']}},required:['status'],additionalProperties:false},keep_alive:'10m',options:{temperature:0,num_predict:80,...config.ollama.options},prompt:'Верни только JSON с единственным полем status, точно равным вычисленному research.status. Не добавляй текст, числа и другие поля. '+JSON.stringify({symbol,research:signal})})}));
  if(res.ok){const data=await res.json();modelConfirmed=validateAssessment(data.response,signal);}
  }catch{}
  try{
@@ -140,12 +144,15 @@ function connect(){
  connectTimer=setTimeout(()=>retry('API не ответил за 12 секунд. Проверьте порт и разрешения TWS'),12000);
  api.connect(config.ibkr.clientId);
 }
-const routes={'/i18n.js':['public/i18n.mjs','text/javascript; charset=utf-8'],'/filters.js':['public/filters.mjs','text/javascript; charset=utf-8'],'/settings':['public/settings.html','text/html; charset=utf-8'],'/settings.js':['public/settings.js','text/javascript; charset=utf-8'],'/':['public/index.html','text/html; charset=utf-8'],'/app.js':['public/app.js','text/javascript; charset=utf-8'],'/style.css':['public/style.css','text/css'],'/charts.js':['node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js','text/javascript']};
+const handleSpeech=installSpeech(root,config.port);
+const handleChat=installChat({root,config,snapshot,modelQueue,ollamaUrl,db});
+const routes={'/chat.js':['public/chat.js','text/javascript; charset=utf-8'],'/i18n.js':['public/i18n.mjs','text/javascript; charset=utf-8'],'/filters.js':['public/filters.mjs','text/javascript; charset=utf-8'],'/settings':['public/settings.html','text/html; charset=utf-8'],'/settings.js':['public/settings.js','text/javascript; charset=utf-8'],'/':['public/index.html','text/html; charset=utf-8'],'/app.js':['public/app.js','text/javascript; charset=utf-8'],'/style.css':['public/style.css','text/css'],'/charts.js':['node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js','text/javascript']};
 const server=http.createServer((req,res)=>{
  const host=req.headers.host;if(!['127.0.0.1:'+config.port,'localhost:'+config.port].includes(host)){res.writeHead(403);return res.end();}
  res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
- res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; frame-src 'self' https://*.tradingview.com https://*.tradingview-widget.com; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'");
+ res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; frame-src 'self' https://*.tradingview.com https://*.tradingview-widget.com; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; media-src 'self' blob:; frame-ancestors 'none'");
  if(req.url.startsWith('/settings'))res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-src 'none'; frame-ancestors 'self'");
+if(handleSpeech(req,res)||handleChat(req,res))return;
 if(req.method==='POST'&&req.url==='/api/provider'){
  if(!['http://127.0.0.1:'+config.port,'http://localhost:'+config.port].includes(req.headers.origin)||req.headers['content-type']!=='application/json'){res.writeHead(403);return res.end();}
  let body='';req.on('data',chunk=>{body+=chunk;if(body.length>2048){res.writeHead(413);res.end();req.destroy();}});

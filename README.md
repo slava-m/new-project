@@ -59,3 +59,17 @@ belowSma150 формируется сервером из числового ср
 analysisIntervalMs=3600000. На старте и на границе каждого часа модель повторно проверяет рассчитанные статусы всех акций с локальной историей. Исторические симуляции пересчитываются при обновлении свечей; неизменный архив повторно не скачивается каждый час. Дашборд показывает время текущего и следующего прохода, число обновлённых отчётов и очередь. Часовой проход начинается по расписанию и обрабатывает акции последовательно, а не одновременно. Приложение должно работать.
 После перезапуска уже обработанные в текущем часовом интервале акции восстанавливаются из сохранённых analyses. Ответ для устаревшей версии истории не перезаписывает отчёт по новым свечам. У кешированных свечей сохранено настоящее время получения и доступность для вычислений; кеш не объявляется недоступным только из-за перезапуска.
 Обновление источников ориентируется на последний завершённый будний день по дате Нью-Йорка, текущая сессия по-прежнему исключается. Выходные не вызывают повторную загрузку одной и той же пятничной истории. Биржевой календарь праздников пока не подключён: проверка наличия новой сессии может сделать один лишний запрос на тикер в праздничный день, но не каждый час.
+
+
+### Dashboard conversation agent
+The same-page chat uses the resident local Ollama model with a separate conversation history stored in the ignored SQLite database. Scanner and conversation requests share one serialized model queue; chat is prioritized after the active generation finishes. Background history downloading and CPU calculations continue independently.
+
+The chat receives allowlisted calculated facts, the selected ticker's history metrics, universe counts, all current candidates (up to 30), and a labelled sample of 15 watched stocks. Mention an uppercase known ticker to change the question's context. Replies are model explanations, not validated trading signals; the calculated strategy panel remains authoritative. Chat cannot execute trades or access provider credentials.
+
+Microphone recording is explicit and limited to 60 seconds. Local faster-whisper small (CPU/int8) transcribes uploaded audio; the recognized text is shown for review before sending. Local Windows System.Speech voices synthesize Russian/English replies when “Speak replies” is checked. Temporary audio/text files are deleted after processing. No browser cloud speech recognition is used.
+On a new Windows machine with Python 3.12, run:
+powershell -File setup-voice.ps1 -PythonPath C:\path\to\python.exe
+Setup downloads dependencies and the pinned multilingual model once into ignored data/. Later speech inference is offline. Windows must have a local voice for the selected language. This is a turn-based voice interaction, not continuous duplex conversation.
+
+Verification: node --test; node verify-chat.mjs; node verify-preferences.mjs.
+The live speech test uses data/voice-test.wav, a locally generated synthetic English voice sample; it does not record the user's microphone.

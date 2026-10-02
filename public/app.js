@@ -1,3 +1,4 @@
+import {initChat} from '/chat.js';
 import {translateDOM,validLanguage} from '/i18n.js';
 import {matchesFilter,readPreferences,savePreferences} from '/filters.js';
 const preferences=readPreferences(localStorage);let language=preferences.language;
@@ -87,3 +88,5 @@ $('ui-language').onchange=e=>{language=validLanguage(e.target.value);document.do
 $('scan-status').onchange=()=>{if($('scan-status').value==='belowSma150')$('hide-below-sma').checked=false;storeUI();render();};
 $('hide-below-sma').onchange=()=>{if($('hide-below-sma').checked&&$('scan-status').value==='belowSma150')$('scan-status').value='all';storeUI();render();};
 document.documentElement.lang=language;translateDOM(document.body,language);
+
+initChat({getSymbol:()=>selected,getLanguage:()=>language});
