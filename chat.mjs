@@ -7,7 +7,7 @@ export function chatContext(snapshot,symbol){
  const rows=Object.entries(snapshot.symbols||{});
  const counts={};for(const [,v]of rows)counts[v.signal?.status||'insufficient']=(counts[v.signal?.status||'insufficient']||0)+1;
  const selected=snapshot.symbols?.[symbol];
- return {asOf:new Date().toISOString(),symbol,counts,archive:snapshot.archive,minute:snapshot.minute?{timeframe:"1min",lastBar:snapshot.minute.bars?.at(-1),totalBars:snapshot.minute.totalBars,fetchedAt:snapshot.minute.fetchedAt,ageMinutes:snapshot.minute.ageMinutes,status:snapshot.minute.status,source:snapshot.minute.source}:null,
+ return {asOf:new Date().toISOString(),symbol,counts,archive:snapshot.archive,higherFrames:snapshot.higherFrames?{hourlyLast:snapshot.higherFrames.hourly?.bars?.at(-1),requestedYears:snapshot.higherFrames.requestedYears,fetchedAt:snapshot.higherFrames.fetchedAt}:null,minute:snapshot.minute?{timeframe:"1min",lastBar:snapshot.minute.bars?.at(-1),totalBars:snapshot.minute.totalBars,fetchedAt:snapshot.minute.fetchedAt,ageMinutes:snapshot.minute.ageMinutes,status:snapshot.minute.status,source:snapshot.minute.source}:null,
  selected:selected?{signal:selected.signal,report:selected.analysis?.text,generated:selected.analysis?.generated,history:selected.history?{metrics:selected.history.metrics,coverage:selected.history.coverage,signals:selected.history.signals}:null,lastBar:selected.bars?.at(-1),provider:selected.dataProvider}:null,
  candidates:rows.filter(([,v])=>v.signal?.status==='candidate').map(([ticker,v])=>({ticker,status:v.signal.status,reasons:v.signal.reasons})).slice(0,30),
  watching:rows.filter(([,v])=>v.signal?.status==='waiting').slice(0,15).map(([ticker,v])=>({ticker,reasons:v.signal.reasons}))};

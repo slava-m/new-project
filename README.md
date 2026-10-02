@@ -82,3 +82,15 @@ The minute and daily Yahoo loaders share the existing 750 requests/day applicati
 
 Choosing “Minute candles” switches the local chart and shows source, completed-bar time, fetch time, candle age and queue state. The local chart time axis uses UTC; status timestamps use Jerusalem time. TradingView remains an independent visual source. Strategy signals, SMA150, agent status verification, and historical trading simulation remain daily; the chat can inspect separately labelled minute context. No intraday trading strategy or execution has been enabled.
 Verification: node --test; node verify-minute.mjs; node verify-preferences.mjs; node verify-compact.mjs.
+
+
+### Current archive targets and daily model schedule
+Daily history target is three calendar years (Yahoo uses explicit start/end dates; the Twelve Data fallback requests 800 daily rows). Existing archive metadata is versioned by requested years, so the background app agent automatically queues deeper history. Hourly history target is one calendar year, stored independently in hour_bars/hour_meta. The user removed four-hour candles from this version; no four-hour archive or chart interval is generated.
+
+Daily, hourly and minute Yahoo requests share the application's existing budget and rate spacing. Rotating admission slots prevent one archive from monopolizing available requests; the optional Twelve Data daily fallback uses its own saved quota. All queues are automatic while the server runs.
+
+Automated model review now runs once per UTC day (next run is shown in Jerusalem time). Download arrivals no longer enqueue model analyses. Reports already generated today are reused across restart even if deeper history is being downloaded. Dashboard numerical facts can still reflect new cached bars; the model report's source date remains visible. Interactive chat stays available on demand.
+
+A full year of minute backfill is NOT available from the current Yahoo source. Both a year-long request and a seven-day window a year ago were tested and rejected; the latter response required dates within the last 30 days. The app retains its available recent-minute backfill and accumulates new minute bars locally, and explicitly reports the one-year target as unavailable. Stocks listed less than three years/one year ago can only have history since listing. Coverage is the returned range, never a fabricated full-year claim.
+
+Manual review is available in the dashboard for the selected stock or all loaded stocks. The local-origin JSON endpoint queues the existing daily research report pipeline plus a refreshed historical simulation, without changing the daily automatic schedule. Requests are rejected while an existing model review queue is running. Interactive chat remains separate. Verification: node verify-hourly.mjs.

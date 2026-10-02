@@ -5,7 +5,7 @@ const browser=await chromium.launch({headless:true,channel:'msedge'});
 try{
  const page=await browser.newPage({viewport:{width:1034,height:1122}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  const state=await(await page.request.get('http://127.0.0.1:8787/api/state?symbol=AAPL')).json();
- assert.ok(state.minute.bars.length>100);assert.ok(state.minute.bars.every(b=>b.time%60===0&&b.time+60<=state.now/1000));assert.equal(state.symbols.AAPL.bars.length,501);
+ assert.ok(state.minute.bars.length>100);assert.ok(state.minute.bars.every(b=>b.time%60===0&&b.time+60<=state.now/1000));assert.ok(state.symbols.AAPL.bars.length>=500);
  await page.route('**/events*',route=>route.fulfill({contentType:'text/event-stream',body:'data: '+JSON.stringify(state)+'\n\n'}));
  await page.goto('http://127.0.0.1:8787');await page.locator('#symbol').filter({hasText:'AAPL'}).waitFor();const dailyMethod=await page.locator('#signal-method').innerText();
  await page.selectOption('#chart-interval','1min');assert.ok(await page.locator('#chart').isVisible());assert.ok(await page.locator('#minute-status').isVisible());assert.match(await page.locator('#freshness').innerText(),/1 min/);assert.equal(await page.locator('#signal-method').innerText(),dailyMethod);

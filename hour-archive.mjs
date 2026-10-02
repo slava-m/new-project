@@ -1,0 +1,26 @@
+
+import {validBar} from './indicators.mjs';import {yahooSymbol} from './yahoo.mjs';import {nextMinuteJob} from './intraday.mjs';
+const clock=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+export function sessionWindow(time){const p=Object.fromEntries(clock.formatToParts(new Date(time*1000)).map(x=>[x.type,x.value]));const minute=Number(p.hour)*60+Number(p.minute),sec=Number(p.second);if(['Sat','Sun'].includes(p.weekday)||minute<570||minute>=960||sec!==0)return null;const start=time-(minute-570)*60;return {start,end:start+23400};}
+export function normalizeHours(payload,symbol,now=Date.now()){
+ const r=payload.chart?.result?.[0],q=r?.indicators?.quote?.[0],times=r?.timestamp;
+ if(payload.chart?.error||r?.meta?.symbol!==yahooSymbol(symbol)||r?.meta?.currency!=='USD'||r?.meta?.instrumentType!=='EQUITY'||!['1h','60m'].includes(r?.meta?.dataGranularity))throw Error('Invalid hourly instrument');
+ if(!Array.isArray(times)||!q||['open','high','low','close','volume'].some(k=>!Array.isArray(q[k])||q[k].length!==times.length))throw Error('Incomplete hourly arrays');
+ const unique=new Map();for(let i=0;i<times.length;i++){const time=times[i];if(!Number.isInteger(time)||time<0)throw Error('Invalid hourly timestamp');const session=sessionWindow(time);if(!session||(time-session.start)%3600!==0||Math.min(time+3600,session.end)>now/1000)continue;if(['open','high','low','close','volume'].some(k=>q[k][i]===null))continue;const b={time,open:q.open[i],high:q.high[i],low:q.low[i],close:q.close[i],volume:q.volume[i]};if(!validBar(b)||!Number.isFinite(b.volume)||b.volume<0)throw Error('Invalid hourly OHLCV');unique.set(time,b);}
+ const bars=[...unique.values()].sort((a,b)=>a.time-b.time);if(!bars.length)throw Error('No completed hourly bars');return bars;
+}
+export async function fetchHours(symbol,years=1,fetcher=fetch,now=new Date()){
+ const end=Math.floor(now.getTime()/1000),start=new Date(now);start.setUTCFullYear(start.getUTCFullYear()-years);
+ const url=new URL('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(yahooSymbol(symbol)));for(const [k,v]of Object.entries({interval:'1h',period1:String(Math.floor(start.getTime()/1000)),period2:String(end),includePrePost:'false'}))url.searchParams.set(k,v);
+ const r=await fetcher(url,{signal:AbortSignal.timeout(20000),redirect:'error'});if(!r.ok){const e=Error('Hourly source HTTP '+r.status);e.status=r.status;throw e;}return normalizeHours(await r.json(),symbol,now.getTime());
+}
+export function createHourlyArchive({db,symbols,getQuota,consume,pause,broadcast,canFetch=()=>true,years=1}){
+ db.exec('CREATE TABLE IF NOT EXISTS hour_bars(symbol TEXT,time INTEGER,open REAL,high REAL,low REAL,close REAL,volume REAL,PRIMARY KEY(symbol,time));CREATE TABLE IF NOT EXISTS hour_meta(symbol TEXT PRIMARY KEY,payload TEXT)');
+ const meta=Object.fromEntries(db.prepare('SELECT * FROM hour_meta').all().map(r=>[r.symbol,JSON.parse(r.payload)])),counts=Object.fromEntries(db.prepare('SELECT symbol,COUNT(*) AS count FROM hour_bars GROUP BY symbol').all().map(r=>[r.symbol,r.count]));
+ const put=db.prepare('INSERT INTO hour_bars VALUES(?,?,?,?,?,?,?) ON CONFLICT(symbol,time) DO UPDATE SET open=excluded.open,high=excluded.high,low=excluded.low,close=excluded.close,volume=excluded.volume');let nextAt=Date.now(),running=false,stopped=false,status='checking',error=null;
+ const save=(s,m)=>{meta[s]=m;db.prepare('INSERT INTO hour_meta VALUES(?,?) ON CONFLICT(symbol) DO UPDATE SET payload=excluded.payload').run(s,JSON.stringify(m));};
+ function detail(symbol){const bars=db.prepare('SELECT time,open,high,low,close,volume FROM hour_bars WHERE symbol=? ORDER BY time DESC LIMIT 5000').all(symbol).reverse();return {hourly:{bars,totalBars:counts[symbol]||0,source:'Yahoo Finance',timeframe:'1hour'},requestedYears:years,fetchedAt:meta[symbol]?.fetchedAt||null,error:meta[symbol]?.error||null};}
+ function summary(){return {status,running,loaded:symbols.filter(s=>counts[s]>0).length,total:symbols.length,pending:symbols.filter(s=>!counts[s]).length,nextCheckAt:running?null:nextAt,requestedYears:years,source:'Yahoo Finance',error};}
+ async function tick(){if(stopped||running||Date.now()<nextAt)return;if(!canFetch()){nextAt=Date.now()+1000;status='waiting-slot';return;}const job=nextMinuteJob(symbols,meta,getQuota(),Date.now(),null,3600000);status=job.reason;if(!job.symbol){nextAt=job.nextAt;return;}running=true;nextAt=Date.now()+1000;try{consume();const bars=await fetchHours(job.symbol,years);if(stopped)return;db.exec('BEGIN');try{for(const b of bars)put.run(job.symbol,b.time,b.open,b.high,b.low,b.close,b.volume);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}counts[job.symbol]=db.prepare('SELECT COUNT(*) AS count FROM hour_bars WHERE symbol=?').get(job.symbol).count;save(job.symbol,{fetchedAt:Date.now(),status:'ready',retryAt:0});error=null;status='ready';}catch(e){const until=Date.now()+([403,429].includes(e.status)?15*60000:3600000);if([403,429].includes(e.status))pause(until);save(job.symbol,{...meta[job.symbol],retryAt:until,status:'error',error:'Hourly data unavailable'});error='Hourly data unavailable for '+job.symbol;status='error';}finally{running=false;if(!stopped)broadcast();}}
+ return {tick,detail,summary,stop:()=>stopped=true};
+}

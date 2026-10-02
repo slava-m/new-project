@@ -38,10 +38,17 @@
     "version": "sma150-structures-v2"
   },
   "analysisTimeframe": "1day",
-  "dailyHistoryBars": 520,
-  "analysisIntervalMs": 3600000,
+  "dailyHistoryBars": 800,
+  "analysisIntervalMs": 86400000,
   "intraday": {
     "enabled": true,
-    "refreshMs": 3600000
+    "refreshMs": 3600000,
+    "requestedHistoryYears": 1
+  },
+  "dailyHistoryYears": 3,
+  "reanalyzeOnData": false,
+  "hourlyArchive": {
+    "enabled": true,
+    "historyYears": 1
   }
 }
