@@ -1,5 +1,6 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+['Источники данных','Data sources'],['Yahoo Finance — источник без ключа. Twelve Data — резервный источник.','Yahoo Finance is a keyless source. Twelve Data is the fallback source.'],['Настроить резервный ключ','Configure fallback key'],['Резервный ключ Twelve Data уже сохранён. Повторный ввод не требуется.','The Twelve Data fallback key is already saved. No need to enter it again.'],['Резервный ключ Twelve Data не настроен. Yahoo работает без ключа.','No Twelve Data fallback key is configured. Yahoo works without a key.'],
 ['Локальный архив обновлён','Local archive is up to date'],
 ['Проверка источника выполняется сейчас','Source check is running now'],['Следующая проверка источника: ','Next source check: '],['следующий анализ: ','next analysis: '],['время Иерусалима','Jerusalem time'],
 ['Акции по фильтру','Filtered stocks'],['Выберите акцию для подробного анализа. Справа — цена закрытия, USD.','Choose a stock for detailed analysis. The right column shows its closing price in USD.'],

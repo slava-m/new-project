@@ -23,6 +23,7 @@ function widget(){
 $('chart-source').onchange=e=>{chartSource=e.target.value;render();};
 function render(){
  if(!state)return;const s=state;if(!s.symbols[selected])selected=Object.keys(s.symbols)[0];const v=s.symbols[selected],signal=v.signal;if(!v)return;
+ $('source-status').textContent=s.archive?.sources?.twelvedata?.configured?'Резервный ключ Twelve Data уже сохранён. Повторный ввод не требуется.':'Резервный ключ Twelve Data не настроен. Yahoo работает без ключа.';
  $('connection').textContent=s.daily.status==='ready'?'Дневная история подключена':s.daily.status==='loading'?'Загружается дневная история':s.daily.status==='paused'?'Очередь ожидает лимит':'Дневной источник требует настройки';
  const counts={};for(const x of Object.values(s.symbols))counts[x.signal.status]=(counts[x.signal.status]||0)+1;
  const search=$('scan-search').value.trim().toUpperCase(),filters={search,status:$('scan-status').value,hideBelow:$('hide-below-sma').checked};
@@ -81,8 +82,9 @@ function render(){
 }
 let events;function openEvents(symbol){events?.close();events=new EventSource('/events'+(symbol?'?symbol='+encodeURIComponent(symbol):''));events.onmessage=e=>{state=JSON.parse(e.data);render();};events.onerror=()=>{$('connection').textContent='Нет связи с локальным сервером; экран может быть устаревшим';};}openEvents();$('scan-search').oninput=()=>render();
 
-document.querySelectorAll('.setup-link').forEach(link=>link.onclick=e=>{e.preventDefault();const block=$('source-settings');block.open=true;if(!$('settings-frame').src)$('settings-frame').src='/settings?lang='+language;block.scrollIntoView({behavior:'smooth',block:'start'});});
+document.querySelectorAll('.setup-link').forEach(link=>link.onclick=e=>{e.preventDefault();const block=$('source-settings');block.open=true;block.scrollIntoView({behavior:'smooth',block:'start'});});
 
+$('change-provider-key').onclick=()=>{const frame=$('settings-frame');frame.hidden=!frame.hidden;if(!frame.hidden&&!frame.getAttribute('src'))frame.src='/settings?lang='+language;};
 $('ui-language').value=language;$('scan-status').value=preferences.status;$('hide-below-sma').checked=preferences.hideBelow;
 function storeUI(){savePreferences(localStorage,{language,status:$('scan-status').value,hideBelow:$('hide-below-sma').checked});}
 $('ui-language').onchange=e=>{language=validLanguage(e.target.value);document.documentElement.lang=language;storeUI();chart.applyOptions({localization:{locale:language==='en'?'en-US':'ru-RU'}});$('settings-frame').contentWindow?.postMessage({type:'ui-language',language},location.origin);if(state)render();else translateDOM(document.body,language);};
