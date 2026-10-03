@@ -35,7 +35,7 @@
     "nearAtr": 0.5,
     "maxAgeDays": 7,
     "minTurnover": 20000000,
-    "version": "sma150-structures-v2"
+    "version": "sma150-structures-v3-netrr"
   },
   "analysisTimeframe": "1day",
   "dailyHistoryBars": 800,

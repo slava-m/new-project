@@ -1,6 +1,7 @@
+import {executionPlan,executionDefaults} from './execution-costs.mjs';
 import {evaluateStrategy} from './strategy.mjs';
 import {validBar} from './indicators.mjs';
-export const simulationDefaults={initialCapital:10000,riskFraction:0.01,commissionPerSide:2.5,slippageBps:5,minRR:2};
+export const simulationDefaults=executionDefaults;
 export function simulateHistory(bars,options={},evaluate=evaluateStrategy){
  const o={...simulationDefaults,...options};
  if(!Number.isFinite(o.initialCapital)||o.initialCapital<=0||o.riskFraction<=0||o.riskFraction>1||!Number.isFinite(o.commissionPerSide)||o.commissionPerSide<0||o.slippageBps<0)throw Error('Invalid simulation settings');
@@ -19,11 +20,9 @@ export function simulateHistory(bars,options={},evaluate=evaluateStrategy){
  if(clock(i)>pending.expiry){expired++;pending=null;}
  else if(b.open<=pending.plan.support.value){skipped++;pending=null;}
  else if(b.high>=pending.plan.entry){
- const p=pending.plan,entry=Math.max(b.open,p.entry)*(1+slip),risk=entry-p.stop,priceRisk=entry-p.stop*(1-slip);
- const qty=priceRisk>0?Math.min(Math.floor((capital*o.riskFraction-2*fee)/priceRisk),Math.floor((capital-fee)/entry)):0;
- const netReward=(p.target*(1-slip)-entry)*qty-2*fee,netRisk=priceRisk*qty+2*fee;
- if(risk<=0||netRisk<=0||netReward/netRisk<o.minRR||qty<1){skipped++;pending=null;}
- else{position={decisionTime:pending.decisionTime,entryTime:b.time,entryIndex:i,entry,entryFee:fee,qty,risk,stop:p.stop,target:p.target,support:p.support.value,maxHoldSessions:p.maxHoldSessions,closeInvalidated:false};pending=null;}
+ const p=pending.plan,execution=executionPlan(p,{...o,capital},b.open),{entry,qty}=execution,risk=entry-p.stop;
+ if(risk<=0||execution.netRisk<=0||!Number.isFinite(execution.rr)||execution.rr<execution.minimumRR||qty<1){skipped++;pending=null;}
+ else{position={decisionTime:pending.decisionTime,entryTime:b.time,entryIndex:i,entry,entryFee:fee,qty,risk,stop:p.stop,target:p.target,support:p.support.value,maxHoldSessions:p.maxHoldSessions,closeInvalidated:false,entryRR:execution.rr,plannedNetRisk:execution.netRisk,plannedNetReward:execution.netReward};pending=null;}
  }else if(b.low<=pending.plan.support.value){skipped++;pending=null;}
  }
  if(position){

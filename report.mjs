@@ -13,11 +13,11 @@ export function buildReport({symbol,bars,signal,modelConfirmed=false}){
  if(signal.patterns.length)lines.push('',...signal.patterns.map(x=>x.type+': '+(x.direction+' · '+patternStateLabel(x))+'. '+x.rule));
  if(signal.warnings?.length)lines.push('','Медвежьи предупреждения:',...signal.warnings);
  if(p)lines.push('','Условные уровни, сделка не исполнена:',
- 'Вход: '+number(p.entry)+' · стоп: '+number(p.stop)+' · цель: '+number(p.target)+' · RR: '+number(p.rr),
+ 'Вход: '+number(p.entry)+' · стоп: '+number(p.stop)+' · цель: '+number(p.target)+' · RR: '+number(p.execution?p.netRR:p.rr),
  'Опора: '+number(p.support.value)+'. '+p.supportReason,
  'Цель: '+p.targetReason,
  'Срок активации: '+p.validForSessions+' торговые сессии; максимальное удержание: '+p.maxHoldSessions+' торговых сессий.',
- 'RR рассчитан до комиссий и проскальзывания. Прибыль до цели должна быть минимум вдвое больше риска до стопа.');
+ p.execution?'RR после комиссии и проскальзывания: '+number(p.netRR)+'. Минимум 2:1; верхнего ограничения RR нет. Потенциальный риск: '+number(p.execution.netRisk)+' USD; потенциальная прибыль: '+number(p.execution.netReward)+' USD; количество акций в симуляции: '+p.execution.qty+'.':'RR рассчитан до комиссий и проскальзывания. Прибыль до цели должна быть минимум вдвое больше риска до стопа.');
  else lines.push('','Активного плана и уровней входа нет.');
  lines.push('','Возможные условия отмены, а не факты текущего состояния:',...signal.cancel.map(x=>'• '+x),'',...signal.limitations.map(x=>'• '+x),'',
  modelConfirmed?'Локальная модель подтвердила рассчитанный статус. Текст и уровни сформированы из проверяемых расчётов.':'Подтверждение модели не получено. Показан отчёт по расчётам, без свободного текста модели.');

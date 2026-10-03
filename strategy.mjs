@@ -1,8 +1,9 @@
+import {executionPlan} from './execution-costs.mjs';
 import {validBar} from './indicators.mjs';
 import {pivots} from './chart-math.mjs';
 import {extraStructures,patternCatalogue,patternStateLabel} from './patterns.mjs';
 export {pivots} from './chart-math.mjs';
-export const strategyDefaults={version:'sma150-structures-v2',name:'SMA150 · опора и технические структуры',nearAtr:0.5,stopAtr:0.25,minRR:2,minTurnover:20000000,maxAgeDays:7,maxHoldSessions:10};
+export const strategyDefaults={version:'sma150-structures-v3-netrr',name:'SMA150 · опора и технические структуры',nearAtr:0.5,stopAtr:0.25,minRR:2,minTurnover:20000000,maxAgeDays:7,maxHoldSessions:10};
 export function sma(bars,n){return bars.length<n?null:bars.slice(-n).reduce((s,b)=>s+b.close,0)/n;}
 export function atr14(bars){if(bars.length<15)return null;const tr=bars.slice(1).map((b,i)=>Math.max(b.high-b.low,Math.abs(b.high-bars[i].close),Math.abs(b.low-bars[i].close)));let a=tr.slice(0,14).reduce((s,x)=>s+x,0)/14;for(const x of tr.slice(14))a=(a*13+x)/14;return a;}
 
@@ -52,8 +53,9 @@ export function evaluateStrategy(bars,options={}){
  if(target===null||target<=entry||risk<=0)return {...result,reasons:[...result.reasons,'Нет обоснованной цели выше предполагаемого входа'],support};
  const rr=(target-entry)/risk;
  const plan={entry,stop,target,rr,minimumRR:o.minRR,minimumTarget:entry+o.minRR*risk,riskPerShare:risk,entryState:'Условный вход, не исполненная сделка',support,supportReason:'Последний действующий подтверждённый swing-low; последующий подъём ≥1 ATR',targetReason:resistance?'Ближайшая подтверждённая вершина выше входа':'Измеренная цель технической структуры, не прогноз',maxHoldSessions:o.maxHoldSessions,validForSessions:3,volumeRatio:last.volume/(bars.slice(-21,-1).reduce((s,b)=>s+b.volume,0)/20),costsIncluded:false};
- const trigger=!!pattern||reaction;
- return {...result,status:trigger&&rr>=o.minRR&&target-entry>=o.minRR*risk?'candidate':'waiting',plan,reasons:[...result.reasons,'Опора и расчётные уровни найдены',rr>=o.minRR?'RR проходит экспериментальный порог':'RR ниже экспериментального порога',!trigger?'Нет подтверждённого технического триггера':'Технический триггер сформирован']};
+ plan.execution=executionPlan(plan,o);plan.netRR=plan.execution.rr;plan.costsIncluded=true;plan.minimumTargetAfterCosts=plan.execution.minimumTarget;
+ const trigger=!!pattern||reaction,rrPass=Number.isFinite(plan.netRR)&&plan.netRR>=o.minRR;
+ return {...result,status:trigger&&rrPass?'candidate':'waiting',plan,reasons:[...result.reasons,'Опора и расчётные уровни найдены',rrPass?'RR после издержек проходит минимальный порог':'RR после издержек ниже минимального порога',!trigger?'Нет подтверждённого технического триггера':'Технический триггер сформирован']};
 }
 export function scanHistory(bars,options={}){
  const decisions=[];

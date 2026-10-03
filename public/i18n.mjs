@@ -1,5 +1,14 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+["Отчёт предыдущей версии правил; требуется новый запуск","Report from the previous rule version; rerun required"],
+["RR после издержек проходит минимальный порог","Net RR meets the minimum threshold"],
+["RR после издержек ниже минимального порога","Net RR is below the minimum threshold"],
+["RR после издержек","RR after costs"],
+["Минимальная цель после издержек для 2:1","Minimum target after costs for 2:1"],
+["RR после комиссии и проскальзывания: ","RR after commissions and slippage: "],
+[". Минимум 2:1; верхнего ограничения RR нет. Потенциальный риск: ",". Minimum 2:1; RR has no upper cap. Potential risk: "],
+[" USD; потенциальная прибыль: "," USD; potential reward: "],
+[" USD; количество акций в симуляции: "," USD; simulated shares: "],
 ["Агент загрузки","Data loading agent"],
 ["Агент анализа","Analysis agent"],
 ["Загрузка и анализ работают независимо. Анализ использует сохранённые свечи и не ждёт завершения всей загрузки.","Loading and analysis run independently. Analysis uses cached candles without waiting for the full download."],
