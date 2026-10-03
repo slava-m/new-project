@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {simulatePortfolio} from './portfolio-backtest.mjs';
+const bars=()=>Array.from({length:155},(_,i)=>({time:1600000000+i*86400,open:100,high:i===150?110:101,low:99,close:100,volume:1e7}));
+const evaluate=b=>b.length===150?{status:'candidate',plan:{entry:102,stop:90,target:140,support:{value:91},netRR:3,maxHoldSessions:10,validForSessions:3},facts:{sma150:80}}:{status:'waiting',facts:{sma150:80}};
+test('portfolio shares capital, risks 1% and caps six concurrent positions',()=>{const series=Object.fromEntries(Array.from({length:8},(_,i)=>['S'+i,bars()]));const r=simulatePortfolio(series,{},evaluate);assert.equal(r.maxConcurrent,6);assert.equal(r.capacitySkipped,2);assert.equal(r.openPositions.length,6);for(const p of r.openPositions)assert.ok(p.netRisk<=100);for(const p of r.equity)assert.ok(p.cash>=0);assert.ok(r.metrics.finalEquity<10000);});
+test('cash caps quantity and recomputes net RR',()=>{const r=simulatePortfolio({A:bars()},{initialCapital:105,riskFraction:1,maxPositions:6},evaluate);assert.equal(r.openPositions.length,0);assert.ok(r.equity.every(x=>x.cash>=0));});
+test('future bars cannot alter already completed portfolio trades',()=>{const a=bars();a[151]={...a[151],high:145};const r=simulatePortfolio({A:a},{},evaluate);const b=[...a,{time:a.at(-1).time+86400,open:500,high:510,low:490,close:500,volume:1e7}];const future=simulatePortfolio({A:b},{},evaluate);assert.deepEqual(r.trades,future.trades);assert.equal(r.trades.length,1);});
+test('invalid order or invalid limits rejected',()=>{assert.throws(()=>simulatePortfolio({A:bars().reverse()}));assert.throws(()=>simulatePortfolio({}, {maxPositions:0}));});
+test('entry-bar exits cannot recycle slots across simultaneous candidates',()=>{const a=bars();a[150]={...a[150],high:145};const r=simulatePortfolio({A:a,B:a},{maxPositions:1},evaluate);assert.equal(r.trades.length,1);assert.equal(r.capacitySkipped,1);assert.equal(r.maxConcurrent,1);});
+test('recent-period test keeps warmup but excludes older signals',()=>{const a=bars();const r=simulatePortfolio({A:a},{startTime:a[151].time},evaluate);assert.equal(r.signals,0);assert.equal(r.trades.length,0);assert.equal(r.openPositions.length,0);});
