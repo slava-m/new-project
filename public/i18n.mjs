@@ -1,5 +1,10 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+["проверка выхода по времени после","time-exit check after"],
+["сессий: только без чистого убытка","sessions: only with nonnegative net P&L"],
+["торговых сессий: закрытие только при результате после издержек не ниже нуля.","trading sessions: close only with nonnegative net P&L."],
+["Выход по времени после 10 сессий только при результате после издержек не ниже нуля; убыточная позиция может удерживаться дольше","Time exit after 10 sessions only with nonnegative net P&L; losing positions may be held longer"],
+
 ["Отчёт предыдущей версии правил; требуется новый запуск","Report from the previous rule version; rerun required"],
 ["RR после издержек проходит минимальный порог","Net RR meets the minimum threshold"],
 ["RR после издержек ниже минимального порога","Net RR is below the minimum threshold"],

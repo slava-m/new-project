@@ -16,7 +16,7 @@ export function buildReport({symbol,bars,signal,modelConfirmed=false}){
  'Вход: '+number(p.entry)+' · стоп: '+number(p.stop)+' · цель: '+number(p.target)+' · RR: '+number(p.execution?p.netRR:p.rr),
  'Опора: '+number(p.support.value)+'. '+p.supportReason,
  'Цель: '+p.targetReason,
- 'Срок активации: '+p.validForSessions+' торговые сессии; максимальное удержание: '+p.maxHoldSessions+' торговых сессий.',
+ 'Срок активации: '+p.validForSessions+' торговые сессии; проверка выхода по времени после '+p.maxHoldSessions+' торговых сессий: закрытие только при результате после издержек не ниже нуля.',
  p.execution?'RR после комиссии и проскальзывания: '+number(p.netRR)+'. Минимум 2:1; верхнего ограничения RR нет. Потенциальный риск: '+number(p.execution.netRisk)+' USD; потенциальная прибыль: '+number(p.execution.netReward)+' USD; количество акций в симуляции: '+p.execution.qty+'.':'RR рассчитан до комиссий и проскальзывания. Прибыль до цели должна быть минимум вдвое больше риска до стопа.');
  else lines.push('','Активного плана и уровней входа нет.');
  lines.push('','Возможные условия отмены, а не факты текущего состояния:',...signal.cancel.map(x=>'• '+x),'',...signal.limitations.map(x=>'• '+x),'',
