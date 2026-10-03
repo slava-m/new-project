@@ -35,8 +35,10 @@
     "nearAtr": 0.5,
     "maxAgeDays": 7,
     "minTurnover": 20000000,
-    "version": "sma150-structures-v4-net-time-exit",
-    "timeExitRequiresNonnegative": true
+    "version": "sma150-structures-v5-stop-target-earnings",
+    "timeExitRequiresNonnegative": true,
+    "exitMode": "stop-target-only",
+    "earningsWindowDays": 3
   },
   "analysisTimeframe": "1day",
   "dailyHistoryBars": 800,

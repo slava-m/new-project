@@ -3,7 +3,7 @@ import {validBar} from './indicators.mjs';
 import {pivots} from './chart-math.mjs';
 import {extraStructures,patternCatalogue,patternStateLabel} from './patterns.mjs';
 export {pivots} from './chart-math.mjs';
-export const strategyDefaults={version:'sma150-structures-v4-net-time-exit',name:'SMA150 · опора и технические структуры',nearAtr:0.5,stopAtr:0.25,minRR:2,minTurnover:20000000,maxAgeDays:7,maxHoldSessions:10};
+export const strategyDefaults={version:'sma150-structures-v5-stop-target-earnings',name:'SMA150 · опора и технические структуры',nearAtr:0.5,stopAtr:0.25,minRR:2,minTurnover:20000000,maxAgeDays:7,maxHoldSessions:10};
 export function sma(bars,n){return bars.length<n?null:bars.slice(-n).reduce((s,b)=>s+b.close,0)/n;}
 export function atr14(bars){if(bars.length<15)return null;const tr=bars.slice(1).map((b,i)=>Math.max(b.high-b.low,Math.abs(b.high-bars[i].close),Math.abs(b.low-bars[i].close)));let a=tr.slice(0,14).reduce((s,x)=>s+x,0)/14;for(const x of tr.slice(14))a=(a*13+x)/14;return a;}
 

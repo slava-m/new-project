@@ -10,13 +10,14 @@ export function buildReport({symbol,bars,signal,modelConfirmed=false}){
  'Статус: '+labels[signal.status],...signal.reasons.map(r=>'• '+r),
  '', 'Расчёты по завершённым дневным свечам:',
  'Закрытие: '+number(last?.close)+' · SMA20: '+number(f.sma20)+' · SMA50: '+number(f.sma50)+' · SMA150: '+number(f.sma150)+' · ATR14: '+number(f.atr14)];
+ if(signal.earnings)lines.push('','Календарь отчётности Nasdaq/Zacks: '+(signal.earnings.next?signal.earnings.next.date+' · '+signal.earnings.next.session+' · прогнозная дата':'дата неизвестна')+' · окно блокировки новых входов: '+signal.earnings.windowDays+' календарных дня.');
  if(signal.patterns.length)lines.push('',...signal.patterns.map(x=>x.type+': '+(x.direction+' · '+patternStateLabel(x))+'. '+x.rule));
  if(signal.warnings?.length)lines.push('','Медвежьи предупреждения:',...signal.warnings);
  if(p)lines.push('','Условные уровни, сделка не исполнена:',
  'Вход: '+number(p.entry)+' · стоп: '+number(p.stop)+' · цель: '+number(p.target)+' · RR: '+number(p.execution?p.netRR:p.rr),
  'Опора: '+number(p.support.value)+'. '+p.supportReason,
  'Цель: '+p.targetReason,
- 'Срок активации: '+p.validForSessions+' торговые сессии; проверка выхода по времени после '+p.maxHoldSessions+' торговых сессий: закрытие только при результате после издержек не ниже нуля.',
+ 'Срок активации: '+p.validForSessions+' торговые сессии. Выход только по стопу или тейк-профиту; время и SMA150 не закрывают позицию.',
  p.execution?'RR после комиссии и проскальзывания: '+number(p.netRR)+'. Минимум 2:1; верхнего ограничения RR нет. Потенциальный риск: '+number(p.execution.netRisk)+' USD; потенциальная прибыль: '+number(p.execution.netReward)+' USD; количество акций в симуляции: '+p.execution.qty+'.':'RR рассчитан до комиссий и проскальзывания. Прибыль до цели должна быть минимум вдвое больше риска до стопа.');
  else lines.push('','Активного плана и уровней входа нет.');
  lines.push('','Возможные условия отмены, а не факты текущего состояния:',...signal.cancel.map(x=>'• '+x),'',...signal.limitations.map(x=>'• '+x),'',

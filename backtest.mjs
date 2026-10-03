@@ -1,3 +1,5 @@
+import {calendarRisk} from './earnings-calendar.mjs';
+import {holdingDuration} from './holding-duration.mjs';
 import {executionPlan,executionDefaults,timeExitAllowed} from './execution-costs.mjs';
 import {evaluateStrategy} from './strategy.mjs';
 import {validBar} from './indicators.mjs';
@@ -11,11 +13,12 @@ export function simulateHistory(bars,options={},evaluate=evaluateStrategy){
  let capital=o.initialCapital,pending=null,position=null,signals=0,expired=0,skipped=0,ambiguous=0,peak=capital,maxDrawdownPct=0;
  function close(price,reason,index,uncertain=false){
  const exit=price*(1-slip),exitFee=fee,net=(exit-position.entry)*position.qty-position.entryFee-exitFee;
- capital+=net;trades.push({...position,exit,exitTime:bars[index].time,exitReason:reason,exitFee,net,rMultiple:net/(position.risk*position.qty),ambiguous:uncertain,holdSessions:clock(index)-clock(position.entryIndex)+1});
+ capital+=net;trades.push({...position,...holdingDuration(bars,position.entryTime,bars[index].time,o.timeframe),exit,exitTime:bars[index].time,exitReason:reason,exitFee,net,rMultiple:net/(position.risk*position.qty),ambiguous:uncertain,holdSessions:clock(index)-clock(position.entryIndex)+1});
  position=null;
  }
  for(let i=0;i<bars.length;i++){
  const b=bars[i];
+ if(pending&&o.earningsCache&&calendarRisk(o.symbol,o.earningsCache,b.time*1000+(o.timeframe==='1hour'?3600000:o.timeframe==='1min'?60000:86400000),o.earningsWindowDays||3).blocked){skipped++;pending=null;}
  if(pending){
  if(clock(i)>pending.expiry){expired++;pending=null;}
  else if(b.open<=pending.plan.support.value){skipped++;pending=null;}
@@ -27,7 +30,7 @@ export function simulateHistory(bars,options={},evaluate=evaluateStrategy){
  }
  if(position){
  const p=position;
- if(p.closeInvalidated)close(b.open,'SMA150: выход на следующем открытии',i);
+ if(o.exitMode!=='stop-target-only'&&p.closeInvalidated)close(b.open,'SMA150: выход на следующем открытии',i);
  else if(b.open<=p.stop)close(b.open,'Гэп ниже стопа',i);
  else if(b.open>=p.target)close(b.open,'Гэп выше цели',i);
  else{
@@ -35,7 +38,7 @@ export function simulateHistory(bars,options={},evaluate=evaluateStrategy){
  if(stopHit){if(targetHit)ambiguous++;close(p.stop,targetHit?'Стоп первым: порядок внутри дня неизвестен':'Стоп',i,targetHit);}
  else if(targetHit)close(p.target,'Цель',i);
  else if(clock(i)-clock(p.entryIndex)+1>=p.maxHoldSessions&&timeExitAllowed(p,b.close,o))close(b.close,'Предельный срок удержания',i);
- else if(i>=149){const s=evaluate(bars.slice(0,i+1),o);if(s.facts?.sma150!==undefined&&b.close<s.facts.sma150)position.closeInvalidated=true;}
+ else if(o.exitMode!=='stop-target-only'&&i>=149){const s=evaluate(bars.slice(0,i+1),o);if(s.facts?.sma150!==undefined&&b.close<s.facts.sma150)position.closeInvalidated=true;}
  }
  }
  const marked=capital+(position?(b.close-position.entry)*position.qty-position.entryFee-fee:0);
@@ -46,5 +49,5 @@ export function simulateHistory(bars,options={},evaluate=evaluateStrategy){
  }else if(pending&&i>=149){const s=evaluate(bars.slice(0,i+1),o);if(b.close<s.facts?.sma150){skipped++;pending=null;}}
  }
  const wins=trades.filter(t=>t.net>0),losses=trades.filter(t=>t.net<0),grossWin=wins.reduce((a,t)=>a+t.net,0),grossLoss=-losses.reduce((a,t)=>a+t.net,0);
- return {mode:o.timeframe&&o.timeframe!=='1day'?'intraday execution simulation':'daily execution simulation',settings:{...o,now:undefined,connected:undefined},coverage:{bars:bars.length,first:bars[0]?.time,last:bars.at(-1)?.time,decisionSessions:Math.max(0,bars.length-149)},signals,expired,skipped,ambiguous,trades,openPosition:position,pendingPlan:pending,equity,metrics:{closedTrades:trades.length,winRate:trades.length?wins.length/trades.length*100:null,realizedNet:capital-o.initialCapital,realizedReturnPct:(capital/o.initialCapital-1)*100,maxDrawdownPct,profitFactor:grossLoss?grossWin/grossLoss:null,meanR:trades.length?trades.reduce((a,t)=>a+t.rMultiple,0)/trades.length:null},limitations:[o.timeExitRequiresNonnegative?'Выход по времени после 10 сессий только при результате после издержек не ниже нуля; убыточная позиция может удерживаться дольше':'Выход по времени без проверки прибыли', 'Каждая акция моделируется отдельно: это не портфельный результат','Текущий набор акций создаёт смещение отбора; исключённые/делистингованные компании не представлены','Примерно два года истории дают ограниченное окно после прогрева SMA150','Дневной OHLC не раскрывает порядок цен: при касании стопа и цели выбран стоп первым','Вход и выход на одной дневной свече условны; нет минутного подтверждения','Комиссия 2.50 USD за каждую сторону; проскальзывание и риск 1% — экспериментальные допущения','Новости, дивиденды и корпоративные события не моделируются','Открытые позиции не включены в результаты завершённых сделок; просадка по дневной оценке включает их','Прибыльность и устойчивость стратегии не подтверждены']};
+ return {mode:o.timeframe&&o.timeframe!=='1day'?'intraday execution simulation':'daily execution simulation',settings:{...o,now:undefined,connected:undefined},coverage:{bars:bars.length,first:bars[0]?.time,last:bars.at(-1)?.time,decisionSessions:Math.max(0,bars.length-149)},signals,expired,skipped,ambiguous,trades,openPosition:position?{...position,...holdingDuration(bars,position.entryTime,bars.at(-1).time,o.timeframe)}:null,pendingPlan:pending,equity,metrics:{closedTrades:trades.length,winRate:trades.length?wins.length/trades.length*100:null,realizedNet:capital-o.initialCapital,realizedReturnPct:(capital/o.initialCapital-1)*100,maxDrawdownPct,profitFactor:grossLoss?grossWin/grossLoss:null,meanR:trades.length?trades.reduce((a,t)=>a+t.rMultiple,0)/trades.length:null},limitations:[o.exitMode==='stop-target-only'?'Выход только по стопу или цели; время и SMA150 не закрывают открытую позицию':o.timeExitRequiresNonnegative?'Выход по времени после 10 сессий только при результате после издержек не ниже нуля; убыточная позиция может удерживаться дольше':'Выход по времени без проверки прибыли', 'Каждая акция моделируется отдельно: это не портфельный результат','Текущий набор акций создаёт смещение отбора; исключённые/делистингованные компании не представлены','Примерно два года истории дают ограниченное окно после прогрева SMA150','Дневной OHLC не раскрывает порядок цен: при касании стопа и цели выбран стоп первым','Вход и выход на одной дневной свече условны; нет минутного подтверждения','Комиссия 2.50 USD за каждую сторону; проскальзывание и риск 1% — экспериментальные допущения','Новости, дивиденды и корпоративные события не моделируются','Открытые позиции не включены в результаты завершённых сделок; просадка по дневной оценке включает их','Прибыльность и устойчивость стратегии не подтверждены']};
 }

@@ -1,5 +1,16 @@
 export const validLanguage=value=>value==='en'?'en':'ru';
 const phrases=[
+["Выход только по стопу или цели; время и SMA150 не закрывают открытую позицию","Only stop or target closes an open position; time and SMA150 do not"],
+["Выход только по стопу или тейк-профиту; время и SMA150 не закрывают позицию.","Only stop or target exits; time and SMA150 do not close the position."],
+["выход только по стопу или цели","only stop or target exits"],
+["Ожидается отчётность: новый вход заблокирован","Earnings expected: new entry blocked"],
+["Календарь отчётности неполный или устарел: отсутствие события не подтверждено","Earnings calendar incomplete or stale: absence of an event not confirmed"],
+["Длительность","Duration"],
+["календарных дней","calendar days"],
+["Календарь отчётности Nasdaq/Zacks: ","Nasdaq/Zacks earnings calendar: "],
+["прогнозная дата","estimated date"],
+["дата неизвестна","date unknown"],
+
 ["проверка выхода по времени после","time-exit check after"],
 ["сессий: только без чистого убытка","sessions: only with nonnegative net P&L"],
 ["торговых сессий: закрытие только при результате после издержек не ниже нуля.","trading sessions: close only with nonnegative net P&L."],

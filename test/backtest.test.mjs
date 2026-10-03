@@ -3,7 +3,7 @@ const fixture=()=>Array.from({length:150},(_,i)=>({time:1700000000+i*86400,open:
 const plan={entry:101,stop:95,target:115,support:{value:96},validForSessions:3,maxHoldSessions:10};
 const evaluator=(b)=>({status:b.length===150?'candidate':'waiting',plan,facts:{sma150:90}});
 const add=(b,values)=>b.push({time:b.at(-1).time+86400,open:100,high:102,low:99,close:101,volume:1e6,...values});
-const opts={timeExitRequiresNonnegative:false,commissionPerSide:2.5,slippageBps:0,minRR:0,riskFraction:0.1};
+const opts={exitMode:'time-and-structure',timeExitRequiresNonnegative:false,commissionPerSide:2.5,slippageBps:0,minRR:0,riskFraction:0.1};
 test('fixed commission is 2.50 dollars per side, not percentage',()=>{const b=fixture();add(b,{open:101,high:102,low:99,close:101});for(let i=0;i<9;i++)add(b,{open:101,high:102,low:99,close:101});const r=simulateHistory(b,opts,evaluator);assert.equal(r.trades.length,1);assert.equal(r.trades[0].entryFee,2.5);assert.equal(r.trades[0].exitFee,2.5);assert.equal(r.trades[0].net,-5);assert.equal(r.trades[0].holdSessions,10);});
 test('same-day stop and target choose conservative stop and mark ambiguity',()=>{const b=fixture();add(b,{high:120,low:94,close:105});const r=simulateHistory(b,opts,evaluator);assert.equal(r.trades[0].exit,95);assert.equal(r.ambiguous,1);assert.equal(r.trades[0].ambiguous,true);});
 test('gap below stop exits at open, not ideal stop',()=>{const b=fixture();add(b,{});add(b,{open:90,high:94,low:89,close:92});const r=simulateHistory(b,opts,evaluator);assert.equal(r.trades[0].exit,90);});

@@ -1,3 +1,4 @@
+import {applyCalendar} from './earnings-calendar.mjs';
 import {simulateHistory} from './backtest.mjs';
 import {evaluateStrategy} from './strategy.mjs';
 export function simulateInterval(bars,dailyBars,timeframe,options={}){
@@ -9,9 +10,9 @@ export function simulateInterval(bars,dailyBars,timeframe,options={}){
  const completed=dailyBars.filter(b=>b.time<Math.floor(last.time/86400)*86400).slice(-20);
  if(completed.length<20||completed.some(b=>!Number.isFinite(b.volume)))return {status:'insufficient',facts:{}};
  const dailyTurnover=completed.reduce((sum,b)=>sum+b.close*b.volume,0)/20;
- return evaluateStrategy(prefix,{...o,barSeconds:seconds,dailyTurnover,now:undefined});
+ const signal=evaluateStrategy(prefix,{...o,barSeconds:seconds,dailyTurnover,now:undefined});return o.earningsCache?applyCalendar(signal,o.symbol,o.earningsCache,last.time*1000+seconds*1000,o.earningsWindowDays||3):signal;
  });
  result.generated=Date.now();result.timeframe=timeframe;result.equity=[];
- result.limitations=['Каждая акция моделируется отдельно; это не портфельный результат','SMA и ATR рассчитываются по выбранному интервалу; ликвидность — по предшествующим дневным свечам','Активация до 3 торговых сессий; после 10 торговых сессий выход по времени только при результате после издержек не ниже нуля','Если стоп и цель затронуты одной свечой, выбран стоп первым','Внутридневная симуляция экспериментальная; новости, отчётность и корпоративные события не моделируются','История минут ограничена фактически накопленным архивом; полного года нет'];
+ result.limitations=['Каждая акция моделируется отдельно; это не портфельный результат','SMA и ATR рассчитываются по выбранному интервалу; ликвидность — по предшествующим дневным свечам','Активация до 3 торговых сессий; выход только по стопу или цели, без выхода по времени и SMA150','Если стоп и цель затронуты одной свечой, выбран стоп первым','Внутридневная симуляция экспериментальная; новости, отчётность и корпоративные события не моделируются','История минут ограничена фактически накопленным архивом; полного года нет'];
  return result;
 }

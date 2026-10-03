@@ -1,4 +1,4 @@
-export const executionDefaults={initialCapital:10000,riskFraction:0.01,commissionPerSide:2.5,slippageBps:5,minRR:2,timeExitRequiresNonnegative:true};
+export const executionDefaults={initialCapital:10000,riskFraction:0.01,commissionPerSide:2.5,slippageBps:5,minRR:2,timeExitRequiresNonnegative:true,exitMode:'stop-target-only'};
 export function executionPlan(plan,options={},openingPrice=plan.entry){
  const o={...executionDefaults,...options},capital=o.capital??o.initialCapital,fee=o.commissionPerSide,slip=o.slippageBps/10000;
  if(![plan.entry,plan.stop,plan.target,openingPrice,capital,o.riskFraction,fee,slip].every(Number.isFinite)||capital<=0||o.riskFraction<=0||o.riskFraction>1||fee<0||slip<0||slip>=1)throw Error('Invalid execution settings');
@@ -8,4 +8,4 @@ export function executionPlan(plan,options={},openingPrice=plan.entry){
  const minimumRR=Math.max(2,o.minRR),minimumTarget=qty>0?(entry+(minimumRR*netRisk+2*fee)/qty)/(1-slip):null;
  return {entry,stop,target,qty,priceRisk,netRisk:qty?netRisk:null,netReward:qty?netReward:null,rr,minimumRR,minimumTarget,commissionPerSide:fee,slippageBps:o.slippageBps,initialCapital:capital,riskFraction:o.riskFraction};
 }
-export function timeExitAllowed(position,closingPrice,options={}){const o={...executionDefaults,...options};return !o.timeExitRequiresNonnegative||((closingPrice*(1-o.slippageBps/10000)-position.entry)*position.qty-2*o.commissionPerSide)>=0;}
+export function timeExitAllowed(position,closingPrice,options={}){const o={...executionDefaults,...options};return o.exitMode!=='stop-target-only'&&(!o.timeExitRequiresNonnegative||((closingPrice*(1-o.slippageBps/10000)-position.entry)*position.qty-2*o.commissionPerSide)>=0);}
